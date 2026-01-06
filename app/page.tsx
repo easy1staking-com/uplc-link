@@ -349,11 +349,32 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen p-8 max-w-2xl mx-auto">
-      <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-2">Plutus Scan</h1>
-        <p className="text-gray-400">Don&apos;t trust, verify.</p>
-      </div>
+    <>
+      {/* GitHub Fork Ribbon */}
+      <a
+        href="https://github.com/easy1staking-com/plutus-scan"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed top-0 right-0 z-50"
+      >
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 text-white px-16 py-2 rotate-45 translate-x-12 translate-y-6 shadow-lg hover:from-blue-600 hover:to-blue-800 transition-colors">
+          <span className="text-sm font-semibold">Fork me on GitHub</span>
+        </div>
+      </a>
+
+      <main className="min-h-screen p-8 max-w-2xl mx-auto pb-32">
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-4xl font-bold">Plutus Scan</h1>
+            <span
+              className="px-2 py-1 bg-orange-900/50 border border-orange-600 rounded text-orange-200 text-xs font-semibold cursor-help"
+              title="Alpha software - Expect bugs and issues. Always verify results independently."
+            >
+              ALPHA
+            </span>
+          </div>
+          <p className="text-gray-400">Don&apos;t trust, verify.</p>
+        </div>
 
       <div className="space-y-6">
         <div>
@@ -670,5 +691,128 @@ export default function Home() {
         )}
       </div>
     </main>
+
+    {/* Footer */}
+    <footer className="border-t border-zinc-800 bg-zinc-950 mt-16">
+      <div className="max-w-6xl mx-auto px-8 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* About */}
+          <div>
+            <h3 className="font-bold text-lg mb-4">Plutus Scan</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Open-source tool for verifying Cardano smart contracts built with Aiken.
+            </p>
+            <p className="text-xs text-gray-500">
+              Built on Cardano, powered by Aiken
+            </p>
+          </div>
+
+          {/* Credits & Sponsors */}
+          <div>
+            <h3 className="font-bold text-lg mb-4">Credits</h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <span className="text-gray-400">Sponsored by:</span>
+                <br />
+                <a
+                  href="https://easy1staking.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 font-medium"
+                >
+                  EASY1 Stake Pool
+                </a>
+              </li>
+              <li className="text-gray-500 text-xs">
+                Supporting Cardano decentralization
+              </li>
+            </ul>
+          </div>
+
+          {/* Links */}
+          <div>
+            <h3 className="font-bold text-lg mb-4">Links</h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <a
+                  href="https://github.com/nemo83"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
+                >
+                  <span>👨‍💻</span> @nemo83 (Maintainer)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/easy1staking-com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
+                >
+                  <span>🏢</span> EASY1 Staking GitHub
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://twitter.com/cryptojoe101"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
+                >
+                  <span>𝕏</span> @cryptojoe101
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://cardano.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
+                >
+                  <span>◎</span> Cardano
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://aiken-lang.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
+                >
+                  <span>🔧</span> Aiken
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="border-t border-zinc-800 mt-8 pt-8 text-center">
+          <p className="text-sm text-gray-500">
+            Open source under Apache 2.0 License •{' '}
+            <a
+              href="https://github.com/easy1staking-com/plutus-scan"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300"
+            >
+              View on GitHub
+            </a>
+          </p>
+          <p className="text-xs text-gray-600 mt-2">
+            Made with ❤️ for the Cardano community •{' '}
+            <a
+              href="https://claude.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-gray-400"
+            >
+              Built with Claude
+            </a>
+          </p>
+        </div>
+      </div>
+    </footer>
+  </>
   );
 }
