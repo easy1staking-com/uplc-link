@@ -6,6 +6,7 @@ spring:
     schemas: ${DB_SCHEMA:public}
     locations:
       - classpath:db/store/{vendor}
+      - classpath:db/migration/postgresql
     out-of-order: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/plutus_scan}
@@ -37,6 +38,14 @@ management:
       exposure:
         include: health,prometheus
 
+# Verification processing configuration
+verification:
+  max-retries: 3
+  batch-size: 10
+  poll-interval-ms: 30000
+  build-timeout-seconds: 300
+  temp-dir: /tmp/plutus-scan-builds
+
 ---
 spring:
   config:
@@ -55,8 +64,8 @@ store:
     port: 0
     protocol-magic: 2
     # Start from the block that minted the ref input for the contract
-    sync-start-blockhash: 0e459daa0813334b79da2bac23d3324b604ee04209679bed08b6f49cac82cb4e
-    sync-start-slot: 71971209
+    sync-start-blockhash: 6628e0a355d9d2fdc2a6cdb7311b8e5b649a9107a9eed54095c1e48cd2e64a36
+    sync-start-slot: 101340984
     keep-alive-interval: 1000
   blocks:
     epoch-calculation-interval=14400:  # 14400 = 4 hours

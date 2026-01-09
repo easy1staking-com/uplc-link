@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import static com.bloxbean.cardano.client.backend.blockfrost.common.Constants.BLOCKFROST_PREVIEW_URL;
 
 @Slf4j
-public class PlutusScanMetadataTest extends WalletBasedTest{
+public class PlutusScanMetadataTest extends WalletBasedTest {
 
     private final BFBackendService bfBackendService = new BFBackendService(BLOCKFROST_PREVIEW_URL, "preview6rf9Lym3f9XQrTDnxSBbAGwvz5mNafdz");
 
@@ -36,13 +36,12 @@ public class PlutusScanMetadataTest extends WalletBasedTest{
 
         var plutusScanTxMetadata = PlutusScanRequest.builder()
                 .compilerType(CompilerType.AIKEN)
-                .org("easy1staking-com")
-                .repo("cardano-recurring-payment")
+                .sourceUrl("https://github.com/easy1staking-com/cardano-recurring-payment")
                 .commitHash("35f1a0d51c8663782ab052f869d5c82b756e8615")
-                .optionalPath("")
+//                .sourcePath("")
                 .compilerVersion("v1.1.3")
                 .parameters(Map.of("e513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b", List.of("D8799F58208C198E942F1F7A60E704AA1651333B45BCCD51653259204E4DAC38B559844DD800FF"),
-                        "39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e", List.of("66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0")))
+                        "39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e", List.of("581c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0")))
                 .build();
 
         log.info("{}", plutusScanTxMetadata.toPlutusData().serializeToHex());
@@ -76,25 +75,24 @@ public class PlutusScanMetadataTest extends WalletBasedTest{
 
         var dataMap = (MapPlutusData) PlutusData.deserialize(HexUtil.decodeHexString(metadataCbor));
 
-        var list = (ListPlutusData)dataMap.getMap().get(BigIntPlutusData.of(1984L));
+        var list = (ListPlutusData) dataMap.getMap().get(BigIntPlutusData.of(1984L));
 
         var reversed = list.getPlutusDataList()
                 .stream()
-                .map(chunk -> HexUtil.encodeHexString(((BytesPlutusData)chunk).getValue()))
+                .map(chunk -> HexUtil.encodeHexString(((BytesPlutusData) chunk).getValue()))
                 .collect(Collectors.joining());
 
         log.info("{}", list);
 
-        var actual =  plutusScanRequestParser.parse(reversed).get();
+        var actual = plutusScanRequestParser.parse(reversed).get();
 
         log.info("{}", actual);
 
         var expected = PlutusScanRequest.builder()
                 .compilerType(CompilerType.AIKEN)
-                .org("easy1staking-com")
-                .repo("cardano-recurring-payment")
+                .sourceUrl("http://github.com/easy1staking-com/cardano-recurring-payment")
                 .commitHash("35f1a0d51c8663782ab052f869d5c82b756e8615")
-                .optionalPath("")
+                .sourcePath("")
                 .compilerVersion("v1.1.3")
                 .parameters(Map.of("e513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b", List.of("D8799F58208C198E942F1F7A60E704AA1651333B45BCCD51653259204E4DAC38B559844DD800FF".toLowerCase()),
                         "39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e", List.of("66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0")))

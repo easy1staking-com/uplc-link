@@ -27,13 +27,14 @@ public class PlutusScanRequestParser {
 
             var alternative = jsonData.get("constructor").asInt();
             var fields = jsonData.path("fields");
-            var org = decode(fields.get(0).path("bytes").asText());
-            var repo = decode(fields.get(1).path("bytes").asText());
-            var commitHash = fields.get(2).path("bytes").asText();
-            var optionalPath = decode(fields.get(3).path("bytes").asText());
-            var compilerVersion = decode(fields.get(4).path("bytes").asText());
+
+            // New format: sourceUrl, commitHash (raw bytes), sourcePath, compilerVersion, parametersMap
+            var sourceUrl = decode(fields.get(0).path("bytes").asText());
+            var commitHashBytes = fields.get(1).path("bytes").asText();  // Keep as hex string
+            var sourcePath = decode(fields.get(2).path("bytes").asText());
+            var compilerVersion = decode(fields.get(3).path("bytes").asText());
             var parameters = new HashMap<String, List<String>>();
-            var map = fields.get(5).path("map");
+            var map = fields.get(4).path("map");
 
             map.iterator().forEachRemaining(node -> {
                 var key = node.get("k").path("bytes").asText();
@@ -46,10 +47,9 @@ public class PlutusScanRequestParser {
             return CompilerType.fromId(alternative)
                     .map(compilerType -> PlutusScanRequest.builder()
                             .compilerType(compilerType)
-                            .org(org)
-                            .repo(repo)
-                            .commitHash(commitHash)
-                            .optionalPath(optionalPath)
+                            .sourceUrl(sourceUrl)
+                            .commitHash(commitHashBytes)
+                            .sourcePath(sourcePath)
                             .compilerVersion(compilerVersion)
                             .parameters(parameters)
                             .build());

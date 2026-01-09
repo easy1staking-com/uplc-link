@@ -11,11 +11,10 @@ import java.util.Map;
 
 @Builder
 public record PlutusScanRequest(CompilerType compilerType,
-                                String org,
-                                String repo,
+                                String sourceUrl,
                                 String commitHash,
-                                // Optional<>
-                                String optionalPath,
+                                // Optional<> - Path within repository
+                                String sourcePath,
                                 // Optional<>
                                 String compilerVersion,
                                 Map<String, List<String>> parameters) {
@@ -32,11 +31,10 @@ public record PlutusScanRequest(CompilerType compilerType,
         });
 
         return ConstrPlutusData.of(compilerType.getCompileId(),
-                BytesPlutusData.of(org),
-                BytesPlutusData.of(repo),
+                BytesPlutusData.of(sourceUrl),
                 BytesPlutusData.of(HexUtil.decodeHexString(commitHash)),
-                BytesPlutusData.of(optionalPath),
-                BytesPlutusData.of(compilerVersion),
+                BytesPlutusData.of(sourcePath != null ? sourcePath : ""),
+                BytesPlutusData.of(compilerVersion != null ? compilerVersion : ""),
                 scriptHashToParametersMap
         );
     }
