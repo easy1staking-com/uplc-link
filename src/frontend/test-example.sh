@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Example test script for Plutus Scan
+# Example test script for UPLC Link
 # This shows how to verify a contract using curl
 
 curl -X POST http://localhost:3000/api/verify \

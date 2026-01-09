@@ -365,7 +365,7 @@ export default function Home() {
       <main className="min-h-screen p-8 max-w-2xl mx-auto pb-32">
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-4xl font-bold">Plutus Scan</h1>
+            <h1 className="text-4xl font-bold">UPLC Link</h1>
             <span
               className="px-2 py-1 bg-orange-900/50 border border-orange-600 rounded text-orange-200 text-xs font-semibold cursor-help"
               title="Alpha software - Expect bugs and issues. Always verify results independently."
@@ -698,7 +698,7 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* About */}
           <div>
-            <h3 className="font-bold text-lg mb-4">Plutus Scan</h3>
+            <h3 className="font-bold text-lg mb-4">UPLC Link</h3>
             <p className="text-sm text-gray-400 mb-4">
               Open-source tool for verifying Cardano smart contracts built with Aiken.
             </p>
