@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * REST controller for querying scripts
  */
@@ -95,5 +97,33 @@ public class ScriptController {
 
         var response = ScriptListResponseDto.fromEntities(scripts);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Search scripts by partial source URL pattern (case-insensitive)
+     * Example: GET /api/v1/scripts/search?urlPattern=sundae-labs
+     * Example: GET /api/v1/scripts/search?urlPattern=easy1staking
+     * Example: GET /api/v1/scripts/search?urlPattern=aiken-lang
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<ScriptListResponseDto>> searchScripts(
+            @RequestParam("urlPattern") String urlPattern) {
+
+        log.info("Search request for URL pattern: {}", urlPattern);
+
+        if (urlPattern == null || urlPattern.trim().isEmpty()) {
+            log.warn("Empty URL pattern provided");
+            return ResponseEntity.badRequest().build();
+        }
+
+        List<ScriptListResponseDto> results = scriptService.searchByUrlPattern(urlPattern);
+
+        if (results.isEmpty()) {
+            log.info("No scripts found matching pattern: {}", urlPattern);
+            return ResponseEntity.ok(List.of());  // Return empty list instead of 404
+        }
+
+        log.info("Found {} verification requests matching pattern '{}'", results.size(), urlPattern);
+        return ResponseEntity.ok(results);
     }
 }

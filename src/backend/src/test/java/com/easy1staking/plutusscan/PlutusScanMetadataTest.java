@@ -22,12 +22,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.bloxbean.cardano.client.backend.blockfrost.common.Constants.BLOCKFROST_MAINNET_URL;
 import static com.bloxbean.cardano.client.backend.blockfrost.common.Constants.BLOCKFROST_PREVIEW_URL;
 
 @Slf4j
-public class PlutusScanMetadataTest extends WalletBasedTest {
+public class PlutusScanMetadataTest extends EnvVarInjectionTest {
 
-    private final BFBackendService bfBackendService = new BFBackendService(BLOCKFROST_PREVIEW_URL, "preview6rf9Lym3f9XQrTDnxSBbAGwvz5mNafdz");
+    private final BFBackendService bfBackendService = new BFBackendService(BLOCKFROST_MAINNET_URL, BLOCKFROST_KEY);
 
     private final QuickTxBuilder quickTxBuilder = new QuickTxBuilder(bfBackendService);
 
@@ -46,7 +47,7 @@ public class PlutusScanMetadataTest extends WalletBasedTest {
 
         log.info("{}", plutusScanTxMetadata.toPlutusData().serializeToHex());
 
-        var account = Account.createFromMnemonic(Networks.preview(), WALLET_MNEMONIC);
+        var account = Account.createFromMnemonic(Networks.mainnet(), WALLET_MNEMONIC);
 
         var list = MetadataBuilder.createList();
         var bytesChunks = plutusScanTxMetadata.toCborBytesChunks(64);

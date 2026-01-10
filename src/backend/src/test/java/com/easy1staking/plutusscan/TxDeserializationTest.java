@@ -1,0 +1,20 @@
+package com.easy1staking.plutusscan;
+
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Test;
+
+@Slf4j
+public class TxDeserializationTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    public void deserialize() throws Exception {
+        log.info("tx: {}", MAPPER.writeValueAsString(Transaction.deserialize(HexUtil.decodeHexString("84a400d90102828258204599bee8f97f03662a9d1f7e3273d42c4b626124b20d1ccd0a1481a6490b5dce038258204599bee8f97f03662a9d1f7e3273d42c4b626124b20d1ccd0a1481a6490b5dce0401828258390158ba7073962f4c2602a48eb2cf046341a1cb9b00428ff8fc2daa187354dfc2a6e23e7882af29edb9cf03aa0eca6c6502b9ed6b3015c27a881a000f42408258390158ba7073962f4c2602a48eb2cf046341a1cb9b00428ff8fc2daa187354dfc2a6e23e7882af29edb9cf03aa0eca6c6502b9ed6b3015c27a881a0024e447021a0002c7f907582072bc7f494afc4c1b4aa018596b17f82ad461ef9e1ea719ebd90ca6aa1160f113a0f5a11907c0845840d8799f583d68747470733a2f2f6769746875622e636f6d2f65617379317374616b696e672d636f6d2f63617264616e6f2d726563757272696e672d7061796d6558406e745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e33a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f5858401e581c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f58582a27d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff"))));
+
+    }
+
+}

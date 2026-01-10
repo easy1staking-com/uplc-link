@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 
 interface ParameterSchema {
   title?: string;
@@ -678,6 +679,27 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* Submit to Registry Section */}
+            {verificationResult.success && verificationResult.results.length > 0 && parsedExpectedHashes.length > 0 && (() => {
+              const actualHashes = verificationResult.results.map(r => calculatedHashes[r.validator] || r.actual);
+              const allMatch = actualHashes.length === parsedExpectedHashes.length &&
+                               actualHashes.every(h => parsedExpectedHashes.includes(h));
+
+              return allMatch ? (
+                <SubmitToRegistry
+                  verificationData={{
+                    repoUrl,
+                    commitHash,
+                    aikenVersion,
+                    expectedHashes,
+                    results: verificationResult.results,
+                    validatorParams,
+                    calculatedHashes,
+                  }}
+                />
+              ) : null;
+            })()}
 
             {verificationResult.buildLog && (
               <details className="bg-zinc-900 border border-zinc-800 rounded p-4">

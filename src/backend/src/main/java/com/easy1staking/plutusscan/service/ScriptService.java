@@ -12,8 +12,10 @@ import com.easy1staking.plutusscan.domain.entity.ScriptEntity;
 import com.easy1staking.plutusscan.domain.entity.VerificationRequestEntity;
 import com.easy1staking.plutusscan.domain.enums.ParameterizationStatus;
 import com.easy1staking.plutusscan.domain.repository.ScriptRepository;
+import com.easy1staking.plutusscan.domain.repository.VerificationRequestRepository;
 import com.easy1staking.plutusscan.dto.ParameterSchema;
 import com.easy1staking.plutusscan.dto.ParsedValidator;
+import com.easy1staking.plutusscan.dto.response.ScriptListResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,7 @@ import java.util.Map;
 public class ScriptService {
 
     private final ScriptRepository scriptRepository;
+    private final VerificationRequestRepository verificationRequestRepository;
 
     /**
      * Create script entities from parsed validators
@@ -165,5 +168,24 @@ public class ScriptService {
     @Transactional(readOnly = true)
     public List<ScriptEntity> findBySourceUrlAndCommit(String sourceUrl, String commitHash) {
         return scriptRepository.findBySourceUrlAndCommit(sourceUrl, commitHash);
+    }
+
+    /**
+     * Search for scripts by partial source URL pattern (case-insensitive)
+     * @param urlPattern Pattern to search for (e.g., "sundae-labs", "easy1staking", "aiken-lang")
+     * @return List of script list response DTOs grouped by verification request
+     */
+    @Transactional(readOnly = true)
+    public List<ScriptListResponseDto> searchByUrlPattern(String urlPattern) {
+        log.info("Searching scripts by URL pattern: {}", urlPattern);
+
+        List<VerificationRequestEntity> requests =
+                verificationRequestRepository.findBySourceUrlContaining(urlPattern);
+
+        log.info("Found {} verification requests matching pattern '{}'", requests.size(), urlPattern);
+
+        return requests.stream()
+                .map(ScriptListResponseDto::fromEntity)
+                .toList();
     }
 }

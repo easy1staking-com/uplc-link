@@ -1,6 +1,7 @@
 package com.easy1staking.plutusscan.dto.response;
 
 import com.easy1staking.plutusscan.domain.entity.ScriptEntity;
+import com.easy1staking.plutusscan.domain.entity.VerificationRequestEntity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -44,6 +45,20 @@ public class ScriptListResponseDto {
             .compilerVersion(request.getCompilerVersion())
             .status(request.getStatus().name())
             .scripts(entities.stream()
+                .map(ScriptResponseDto::fromEntity)
+                .collect(Collectors.toList()))
+            .build();
+    }
+
+    public static ScriptListResponseDto fromEntity(VerificationRequestEntity entity) {
+        return ScriptListResponseDto.builder()
+            .sourceUrl(entity.getSourceUrl())
+            .commitHash(entity.getCommitHash())
+            .sourcePath(entity.getSourcePath())
+            .compilerType(entity.getCompilerType().name())
+            .compilerVersion(entity.getCompilerVersion())
+            .status(entity.getStatus().name())
+            .scripts(entity.getScripts().stream()
                 .map(ScriptResponseDto::fromEntity)
                 .collect(Collectors.toList()))
             .build();
