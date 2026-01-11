@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 
 interface ParameterSchema {
@@ -713,128 +714,6 @@ export default function Home() {
         )}
       </div>
     </main>
-
-    {/* Footer */}
-    <footer className="border-t border-zinc-800 bg-zinc-950 mt-16">
-      <div className="max-w-6xl mx-auto px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* About */}
-          <div>
-            <h3 className="font-bold text-lg mb-4">UPLC Link</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Open-source tool for verifying Cardano smart contracts built with Aiken.
-            </p>
-            <p className="text-xs text-gray-500">
-              Built on Cardano, powered by Aiken
-            </p>
-          </div>
-
-          {/* Credits & Sponsors */}
-          <div>
-            <h3 className="font-bold text-lg mb-4">Credits</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <span className="text-gray-400">Sponsored by:</span>
-                <br />
-                <a
-                  href="https://easy1staking.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 font-medium"
-                >
-                  EASY1 Stake Pool
-                </a>
-              </li>
-              <li className="text-gray-500 text-xs">
-                Supporting Cardano decentralization
-              </li>
-            </ul>
-          </div>
-
-          {/* Links */}
-          <div>
-            <h3 className="font-bold text-lg mb-4">Links</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <a
-                  href="https://github.com/nemo83"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
-                >
-                  <span>👨‍💻</span> @nemo83 (Maintainer)
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://github.com/easy1staking-com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
-                >
-                  <span>🏢</span> EASY1 Staking GitHub
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://twitter.com/cryptojoe101"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
-                >
-                  <span>𝕏</span> @cryptojoe101
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://cardano.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
-                >
-                  <span>◎</span> Cardano
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://aiken-lang.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-300 flex items-center gap-2"
-                >
-                  <span>🔧</span> Aiken
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="border-t border-zinc-800 mt-8 pt-8 text-center">
-          <p className="text-sm text-gray-500">
-            Open source under Apache 2.0 License •{' '}
-            <a
-              href="https://github.com/easy1staking-com/plutus-scan"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300"
-            >
-              View on GitHub
-            </a>
-          </p>
-          <p className="text-xs text-gray-600 mt-2">
-            Made with ❤️ for the Cardano community •{' '}
-            <a
-              href="https://claude.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-500 hover:text-gray-400"
-            >
-              Built with Claude
-            </a>
-          </p>
-        </div>
-      </div>
-    </footer>
   </>
   );
 }

@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#0F172A"/>
+
+  <!-- Outer hexagon (representing blockchain) -->
+  <path d="M256 80L380 150V290L256 360L132 290V150L256 80Z" stroke="#3B82F6" stroke-width="8" fill="none"/>
+
+  <!-- Inner code brackets < > -->
+  <path d="M200 200L160 256L200 312" stroke="#60A5FA" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M312 200L352 256L312 312" stroke="#60A5FA" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Center slash / for </> code symbol -->
+  <path d="M280 200L232 312" stroke="#60A5FA" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- UPLC text -->
+  <text x="256" y="420" font-family="monospace" font-size="48" font-weight="bold" fill="#60A5FA" text-anchor="middle">UPLC</text>
+</svg>

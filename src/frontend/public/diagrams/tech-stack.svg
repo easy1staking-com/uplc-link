@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <defs>
+    <style>
+      .layer { fill: #1e293b; stroke: #3b82f6; stroke-width: 2; }
+      .text { fill: #e2e8f0; font-family: Arial, sans-serif; font-size: 14px; }
+      .title { fill: #60a5fa; font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; }
+      .subtitle { fill: #94a3b8; font-family: Arial, sans-serif; font-size: 12px; }
+      .tech { fill: #22c55e; font-family: monospace; font-size: 13px; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="30" class="title" text-anchor="middle">UPLC Link - Tech Stack</text>
+
+  <!-- Frontend Layer -->
+  <rect x="100" y="60" width="600" height="100" class="layer" rx="5"/>
+  <text x="400" y="85" class="title" text-anchor="middle">Frontend</text>
+  <text x="150" y="110" class="tech">Next.js 15</text>
+  <text x="150" y="130" class="text">• React Server Components</text>
+
+  <text x="350" y="110" class="tech">TailwindCSS</text>
+  <text x="350" y="130" class="text">• Responsive Design</text>
+
+  <text x="550" y="110" class="tech">MeshSDK</text>
+  <text x="550" y="130" class="text">• CBOR Encoding</text>
+  <text x="550" y="145" class="text">• Hash Calculation</text>
+
+  <!-- Backend Layer -->
+  <rect x="100" y="180" width="600" height="100" class="layer" rx="5"/>
+  <text x="400" y="205" class="title" text-anchor="middle">Backend</text>
+  <text x="150" y="230" class="tech">Node.js</text>
+  <text x="150" y="250" class="text">• API Routes</text>
+
+  <text x="350" y="230" class="tech">Aiken CLI</text>
+  <text x="350" y="250" class="text">• Smart Contract Build</text>
+  <text x="350" y="265" class="text">• Version Management</text>
+
+  <text x="530" y="230" class="tech">Git Integration</text>
+  <text x="530" y="250" class="text">• Repo Cloning</text>
+  <text x="530" y="265" class="text">• Commit Checkout</text>
+
+  <!-- Smart Features -->
+  <rect x="100" y="300" width="600" height="120" class="layer" rx="5"/>
+  <text x="400" y="325" class="title" text-anchor="middle">Smart Features</text>
+
+  <text x="150" y="350" class="tech">Dynamic Validation</text>
+  <text x="150" y="370" class="text">• Live hash comparison</text>
+  <text x="150" y="385" class="text">• Any-order matching</text>
+  <text x="150" y="400" class="text">• No backend submission</text>
+
+  <text x="350" y="350" class="tech">Parameterization</text>
+  <text x="350" y="370" class="text">• Client-side only</text>
+  <text x="350" y="385" class="text">• Instant recalculation</text>
+  <text x="350" y="400" class="text">• Validator references</text>
+
+  <text x="520" y="350" class="tech">Type Detection</text>
+  <text x="520" y="370" class="text">• Multi-version support</text>
+  <text x="520" y="385" class="text">• Complex types (maps)</text>
+  <text x="520" y="400" class="text">• CBOR hints</text>
+
+  <!-- Footer -->
+  <text x="400" y="460" class="subtitle" text-anchor="middle">100% Open Source • Apache 2.0 License</text>
+  <text x="400" y="480" class="subtitle" text-anchor="middle">github.com/easy1staking-com/plutus-scan</text>
+</svg>

@@ -14,8 +14,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isConnecting, setIsConnecting] = useState(false);
 
   const connectWallet = useCallback(async (walletKey: string): Promise<void> => {
-    if (isConnecting) return;
-
     setIsConnecting(true);
     try {
       console.log('Connecting to wallet:', walletKey);
@@ -42,12 +40,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [isConnecting]);
+  }, []);
 
   // Auto-reconnect on mount if wallet was previously connected
   useEffect(() => {
     const preferredWallet = localStorage.getItem('preferredWallet');
-    if (preferredWallet && typeof window !== 'undefined') {
+    if (preferredWallet && typeof window !== 'undefined' && !wallet) {
       // Check if wallet is still available
       if (window.cardano?.[preferredWallet]) {
         connectWallet(preferredWallet).catch((error) => {
@@ -59,7 +57,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('preferredWallet');
       }
     }
-  }, [connectWallet]);
+  }, [connectWallet, wallet]);
 
   function disconnectWallet(): void {
     setWallet(null);

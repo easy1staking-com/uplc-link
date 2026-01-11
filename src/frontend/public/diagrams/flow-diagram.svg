@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <style>
+      .box { fill: #1e293b; stroke: #3b82f6; stroke-width: 2; }
+      .text { fill: #e2e8f0; font-family: Arial, sans-serif; font-size: 14px; }
+      .title { fill: #60a5fa; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; }
+      .arrow { stroke: #3b82f6; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .success { fill: #10b981; }
+      .error { fill: #ef4444; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#3b82f6" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="30" class="title" text-anchor="middle">UPLC Link - Verification Flow</text>
+
+  <!-- User Input -->
+  <rect x="200" y="60" width="400" height="60" class="box" rx="5"/>
+  <text x="400" y="85" class="title" text-anchor="middle">User Input</text>
+  <text x="400" y="105" class="text" text-anchor="middle" font-size="12">Repo URL • Commit Hash • Aiken Version • Expected Hashes</text>
+
+  <!-- Arrow -->
+  <path d="M 400 120 L 400 160" class="arrow"/>
+
+  <!-- Backend Processing -->
+  <rect x="200" y="160" width="400" height="100" class="box" rx="5"/>
+  <text x="400" y="185" class="title" text-anchor="middle">Backend Processing</text>
+  <text x="400" y="210" class="text" text-anchor="middle">1. Clone Repository</text>
+  <text x="400" y="230" class="text" text-anchor="middle">2. Checkout Commit</text>
+  <text x="400" y="250" class="text" text-anchor="middle">3. Build with Aiken CLI</text>
+
+  <!-- Arrow -->
+  <path d="M 400 260 L 400 290" class="arrow"/>
+
+  <!-- Extract Hashes -->
+  <rect x="200" y="290" width="400" height="60" class="box" rx="5"/>
+  <text x="400" y="315" class="title" text-anchor="middle">Extract Hashes</text>
+  <text x="400" y="335" class="text" text-anchor="middle" font-size="12">Parse plutus.json → Get validator hashes</text>
+
+  <!-- Arrow -->
+  <path d="M 400 350 L 400 380" class="arrow"/>
+
+  <!-- Frontend Validation -->
+  <rect x="200" y="380" width="400" height="80" class="box" rx="5"/>
+  <text x="400" y="405" class="title" text-anchor="middle">Frontend Validation</text>
+  <text x="400" y="425" class="text" text-anchor="middle">Dynamic comparison • Client-side parameterization</text>
+  <text x="400" y="445" class="text" text-anchor="middle">Live hash recalculation (MeshSDK)</text>
+
+  <!-- Arrow Split -->
+  <path d="M 400 460 L 400 490 M 400 490 L 250 520" class="arrow"/>
+  <path d="M 400 490 L 550 520" class="arrow"/>
+
+  <!-- Success -->
+  <rect x="100" y="520" width="200" height="60" class="box success" rx="5"/>
+  <text x="200" y="545" class="title" text-anchor="middle">✅ Match</text>
+  <text x="200" y="565" class="text" text-anchor="middle">Contract Verified</text>
+
+  <!-- Failure -->
+  <rect x="500" y="520" width="200" height="60" class="box error" rx="5"/>
+  <text x="600" y="545" class="title" text-anchor="middle">❌ Mismatch</text>
+  <text x="600" y="565" class="text" text-anchor="middle">Hashes Don't Match</text>
+</svg>

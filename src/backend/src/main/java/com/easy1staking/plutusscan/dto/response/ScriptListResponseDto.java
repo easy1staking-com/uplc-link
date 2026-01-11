@@ -55,12 +55,12 @@ public class ScriptListResponseDto {
             .sourceUrl(entity.getSourceUrl())
             .commitHash(entity.getCommitHash())
             .sourcePath(entity.getSourcePath())
-            .compilerType(entity.getCompilerType().name())
+            .compilerType(entity.getCompilerType() != null ? entity.getCompilerType().name() : null)
             .compilerVersion(entity.getCompilerVersion())
-            .status(entity.getStatus().name())
-            .scripts(entity.getScripts().stream()
+            .status(entity.getStatus() != null ? entity.getStatus().name() : null)
+            .scripts(entity.getScripts() != null ? entity.getScripts().stream()
                 .map(ScriptResponseDto::fromEntity)
-                .collect(Collectors.toList()))
+                .collect(Collectors.toList()) : List.of())
             .build();
     }
 }

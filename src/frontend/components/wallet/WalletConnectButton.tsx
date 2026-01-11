@@ -9,12 +9,12 @@ export function WalletConnectButton() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [error, setError] = useState<string>('');
 
-  async function handleConnect(walletKey: string) {
+  async function handleConnect(walletId: string) {
     setError('');
     setShowDropdown(false);
 
     try {
-      await connectWallet(walletKey);
+      await connectWallet(walletId);
     } catch (err) {
       console.error('Wallet connection error:', err);
       setError('Failed to connect wallet. Please try again.');
@@ -90,13 +90,35 @@ export function WalletConnectButton() {
                 <div className="p-2 border-b border-zinc-800">
                   <div className="text-xs text-gray-500 px-2 py-1">Select Wallet</div>
                 </div>
-                {availableWallets.map((walletKey) => (
+                {availableWallets.map((wallet) => (
                   <button
-                    key={walletKey}
-                    onClick={() => handleConnect(walletKey)}
-                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 transition-colors flex items-center gap-3"
+                    key={wallet.id}
+                    onClick={() => handleConnect(wallet.id)}
+                    disabled={isConnecting}
+                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <div className="text-sm font-medium">{formatWalletName(walletKey)}</div>
+                    {/* Wallet Icon */}
+                    <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-950">
+                      {wallet.icon ? (
+                        <img
+                          src={wallet.icon}
+                          alt={`${wallet.name} icon`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-500">
+                          W
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Wallet Name */}
+                    <div className="text-sm font-medium flex-1">{wallet.name}</div>
+
+                    {/* Loading indicator */}
+                    {isConnecting && (
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    )}
                   </button>
                 ))}
               </>

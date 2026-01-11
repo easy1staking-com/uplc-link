@@ -36,8 +36,8 @@ public class ScriptResponseDto {
             .purpose(entity.getPurpose())
             .rawHash(entity.getRawHash())
             .finalHash(entity.getFinalHash())
-            .plutusVersion(entity.getPlutusVersion().name())
-            .parameterizationStatus(entity.getParameterizationStatus().name())
+            .plutusVersion(entity.getPlutusVersion() != null ? entity.getPlutusVersion().name() : null)
+            .parameterizationStatus(entity.getParameterizationStatus() != null ? entity.getParameterizationStatus().name() : null)
             .requiredParameters(entity.getRequiredParameters())
             .providedParameters(entity.getProvidedParameters())
             .build();

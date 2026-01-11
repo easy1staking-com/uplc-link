@@ -1,0 +1,6 @@
+# uplc.link robots.txt
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://uplc.link/sitemap.xml

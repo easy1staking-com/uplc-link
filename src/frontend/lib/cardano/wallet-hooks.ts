@@ -16,28 +16,51 @@ export function useWallet(): WalletContextType {
   return context;
 }
 
+export interface WalletInfo {
+  id: string;
+  name: string;
+  icon: string;
+}
+
 /**
  * Hook to detect available Cardano wallets in the browser
- * Returns list of wallet keys (e.g., ['eternl', 'nami', 'flint'])
+ * Returns list of wallet info with icons (CIP-30 standard)
  */
-export function useAvailableWallets(): string[] {
-  const [wallets, setWallets] = useState<string[]>([]);
+export function useAvailableWallets(): WalletInfo[] {
+  const [wallets, setWallets] = useState<WalletInfo[]>([]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Check which wallets are installed
-    const detected: string[] = [];
+    const detectWallets = () => {
+      const detected: WalletInfo[] = [];
 
-    if (window.cardano?.eternl) detected.push('eternl');
-    if (window.cardano?.nami) detected.push('nami');
-    if (window.cardano?.flint) detected.push('flint');
-    if (window.cardano?.typhon) detected.push('typhon');
-    if (window.cardano?.gerowallet) detected.push('gerowallet');
+      if (window.cardano) {
+        // Iterate through all properties in window.cardano
+        Object.keys(window.cardano).forEach((key) => {
+          const wallet = window.cardano?.[key];
+          // Check if it's a valid CIP-30 wallet (has name and icon)
+          if (wallet && typeof wallet === 'object' && 'name' in wallet && 'icon' in wallet) {
+            detected.push({
+              id: key,
+              name: (wallet as any).name,
+              icon: (wallet as any).icon
+            });
+          }
+        });
+      }
 
-    setWallets(detected);
+      setWallets(detected);
+      console.log('Detected wallets:', detected);
+    };
 
-    console.log('Detected wallets:', detected);
+    // Detect immediately
+    detectWallets();
+
+    // Also detect after a short delay (some wallets load asynchronously)
+    const timeoutId = setTimeout(detectWallets, 500);
+
+    return () => clearTimeout(timeoutId);
   }, []);
 
   return wallets;

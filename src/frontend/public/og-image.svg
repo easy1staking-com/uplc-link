@@ -1,0 +1,30 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0F172A"/>
+
+  <!-- Grid pattern for tech feel -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+
+  <!-- Hexagon (blockchain symbol) -->
+  <path d="M600 140L740 210V350L600 420L460 350V210L600 140Z" stroke="#3B82F6" stroke-width="6" fill="none"/>
+
+  <!-- Code symbol </> -->
+  <path d="M520 250L460 315L520 380" stroke="#60A5FA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M680 250L740 315L680 380" stroke="#60A5FA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M650 250L550 380" stroke="#60A5FA" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Title -->
+  <text x="600" y="490" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="#F1F5F9" text-anchor="middle">
+    uplc.link
+  </text>
+
+  <!-- Subtitle -->
+  <text x="600" y="540" font-family="Arial, sans-serif" font-size="28" fill="#94A3B8" text-anchor="middle">
+    Cardano Smart Contract Verification
+  </text>
+</svg>
