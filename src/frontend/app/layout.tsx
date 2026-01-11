@@ -149,6 +149,9 @@ export default function RootLayout({
                   <Link href="/registry" className="text-sm text-gray-400 hover:text-white transition-colors">
                     Registry
                   </Link>
+                  <Link href="/docs" className="text-sm text-gray-400 hover:text-white transition-colors">
+                    Docs
+                  </Link>
                 </nav>
               </div>
               <WalletConnectButton />
@@ -205,6 +208,21 @@ export default function RootLayout({
                 <div>
                   <h3 className="text-sm font-semibold mb-4">Links</h3>
                   <ul className="space-y-2 text-sm">
+                    <li>
+                      <Link href="/docs" className="text-gray-400 hover:text-white transition-colors">
+                        📖 Documentation
+                      </Link>
+                    </li>
+                    <li>
+                      <a
+                        href="https://api.uplc.link/swagger-ui.html"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-400 hover:text-white transition-colors"
+                      >
+                        📚 API Reference
+                      </a>
+                    </li>
                     <li>
                       <a
                         href="https://github.com/nemo83"
