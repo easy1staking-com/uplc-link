@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function DocsPage() {
   return (
     <main className="min-h-screen p-8 max-w-4xl mx-auto">
@@ -20,12 +22,12 @@ export default function DocsPage() {
             <div className="bg-zinc-900 border border-zinc-800 rounded p-6">
               <h3 className="text-xl font-semibold mb-3">Basic Verification Flow</h3>
               <ol className="list-decimal list-inside space-y-2">
-                <li>Navigate to the <a href="/" className="text-blue-400 hover:underline">verification page</a></li>
+                <li>Navigate to the <Link href="/" className="text-blue-400 hover:underline">verification page</Link></li>
                 <li>Enter your GitHub repository URL</li>
                 <li>Provide the commit hash to verify</li>
                 <li>Select the Aiken compiler version</li>
                 <li>Enter expected script hashes</li>
-                <li>Click "Verify Contract"</li>
+                <li>Click &quot;Verify Contract&quot;</li>
               </ol>
             </div>
           </div>
@@ -144,7 +146,7 @@ export default function DocsPage() {
                 <li>
                   <span className="font-semibold">Connect Wallet</span>
                   <p className="ml-6 mt-1 text-sm">
-                    Click "Connect Wallet" and choose your Cardano wallet (Eternl, Nami, Flint, etc.)
+                    Click &quot;Connect Wallet&quot; and choose your Cardano wallet (Eternl, Nami, Flint, etc.)
                   </p>
                 </li>
 

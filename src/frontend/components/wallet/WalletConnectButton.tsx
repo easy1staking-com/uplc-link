@@ -100,6 +100,7 @@ export function WalletConnectButton() {
                     {/* Wallet Icon */}
                     <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-950">
                       {wallet.icon ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={wallet.icon}
                           alt={`${wallet.name} icon`}
