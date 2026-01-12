@@ -1,4 +1,29 @@
 import Link from "next/link";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Documentation",
+  description: "Comprehensive guide to verifying and registering Cardano smart contracts with UPLC Link. Learn how to verify Aiken smart contracts and explore the verified registry.",
+  openGraph: {
+    title: "Documentation | UPLC Link",
+    description: "Comprehensive guide to verifying and registering Cardano smart contracts",
+    type: "website",
+    siteName: "UPLC Link",
+    images: [
+      {
+        url: "/api/og?type=home",
+        width: 1200,
+        height: 630,
+        alt: "UPLC Link Documentation",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Documentation | UPLC Link",
+    description: "Comprehensive guide to verifying and registering Cardano smart contracts",
+  },
+};
 
 export default function DocsPage() {
   return (

@@ -39,6 +39,14 @@ export async function generateMetadata({
       description: 'Search and explore verified Plutus smart contracts on Cardano',
       type: 'website',
       siteName: 'UPLC Scan',
+      images: [
+        {
+          url: '/api/og?type=registry',
+          width: 1200,
+          height: 630,
+          alt: 'Registry Explorer',
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
@@ -65,9 +73,17 @@ export async function generateMetadata({
         description: `No verified script found for hash: ${hash.substring(0, 16)}...`,
         type: 'website',
         siteName: 'UPLC Scan',
+        images: [
+          {
+            url: `/api/og?type=registry&hash=${encodeURIComponent(hash)}`,
+            width: 1200,
+            height: 630,
+            alt: 'Script Not Found',
+          },
+        ],
       },
       twitter: {
-        card: 'summary',
+        card: 'summary_large_image',
         title: 'Script Not Found | UPLC Scan',
         description: `No verified script found for hash: ${hash.substring(0, 16)}...`,
       },
@@ -102,7 +118,7 @@ export async function generateMetadata({
       siteName: 'UPLC Scan',
       images: [
         {
-          url: '/og-image.png', // You can create a dynamic OG image later
+          url: `/api/og?type=registry&hash=${encodeURIComponent(hash)}`,
           width: 1200,
           height: 630,
           alt: `${scriptName} verification details`,

@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     siteName: 'UPLC Link',
     images: [
       {
-        url: '/og-image.svg',
+        url: '/api/og?type=home',
         width: 1200,
         height: 630,
         alt: 'UPLC Link - Cardano Smart Contract Verification',
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'UPLC Link - Cardano Smart Contract Verification',
     description: 'Don\'t trust, verify. Build and verify Aiken smart contracts in your browser.',
-    images: ['/og-image.svg'],
+    images: ['/api/og?type=home'],
     creator: '@uplclink',
   },
 
