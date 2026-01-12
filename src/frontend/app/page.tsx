@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 
 interface ParameterSchema {
@@ -311,12 +310,14 @@ export default function Home() {
   }, [validatorParams, verificationResult]);
 
   const handleVerify = async () => {
+    console.log('[Verify] Starting verification...');
     setStatus("verifying");
     setVerificationResult(null);
 
     try {
       // Note: We don't send expected hashes or parameters to the server
       // All comparison and parameterization happens client-side for instant feedback
+      console.log('[Verify] Making fetch request to /api/verify');
       const response = await fetch('/api/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -328,21 +329,44 @@ export default function Home() {
         }),
       });
 
+      console.log('[Verify] Response received:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+
       const result: VerificationResult = await response.json();
+      console.log('[Verify] Result parsed:', {
+        success: result.success,
+        resultsCount: result.results?.length,
+        error: result.error,
+        warnings: result.warnings
+      });
 
       if (result.success) {
+        console.log('[Verify] Setting status to success');
         setStatus("success");
       } else {
+        console.log('[Verify] Setting status to error');
         setStatus("error");
       }
 
+      console.log('[Verify] Setting verification result');
       setVerificationResult(result);
 
       // Initialize parameter state if we haven't already
       if (Object.keys(validatorParams).length === 0) {
+        console.log('[Verify] Initializing parameters');
         initializeParams(result.results);
       }
+
+      console.log('[Verify] Verification complete');
     } catch (error) {
+      console.error('[Verify] Error occurred:', error);
       setStatus("error");
       setVerificationResult({
         success: false,
