@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { backendClient } from '@/lib/api/backend-client';
 import type { ScriptResponseDto, ScriptListResponseDto } from '@/lib/types/registry';
 
@@ -26,16 +27,16 @@ function buildCommitUrl(sourceUrl: string, commitHash: string): string {
 }
 
 export default function RegistryPage() {
+  const searchParams = useSearchParams();
   const [searchMode, setSearchMode] = useState<'hash' | 'url'>('url');
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<ScriptWithMetadata[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!searchQuery.trim()) {
+  // Perform search (can be called from form or programmatically)
+  async function performSearch(query: string, mode: 'hash' | 'url') {
+    if (!query.trim()) {
       setError('Please enter a search query');
       return;
     }
@@ -45,8 +46,8 @@ export default function RegistryPage() {
     setResults([]);
 
     try {
-      if (searchMode === 'hash') {
-        const data = await backendClient.getScriptsByHash(searchQuery.trim());
+      if (mode === 'hash') {
+        const data = await backendClient.getScriptsByHash(query.trim());
         // Add metadata to each script
         const scriptsWithMetadata = (data.scripts || []).map(script => ({
           ...script,
@@ -58,7 +59,7 @@ export default function RegistryPage() {
         setResults(scriptsWithMetadata);
       } else {
         // Partial URL search
-        const dataList = await backendClient.searchByUrlPattern(searchQuery.trim());
+        const dataList = await backendClient.searchByUrlPattern(query.trim());
         // Flatten results but keep verification metadata with each script
         const allScripts = dataList.flatMap(data =>
           (data.scripts || []).map(script => ({
@@ -77,6 +78,27 @@ export default function RegistryPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Handle URL parameters on mount
+  useEffect(() => {
+    const hashParam = searchParams.get('hash');
+    const urlParam = searchParams.get('url');
+
+    if (hashParam) {
+      setSearchMode('hash');
+      setSearchQuery(hashParam);
+      performSearch(hashParam, 'hash');
+    } else if (urlParam) {
+      setSearchMode('url');
+      setSearchQuery(urlParam);
+      performSearch(urlParam, 'url');
+    }
+  }, [searchParams]);
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    performSearch(searchQuery, searchMode);
   }
 
   return (
@@ -227,12 +249,25 @@ export default function RegistryPage() {
                   <span className="text-sm text-gray-500">Raw Hash:</span>
                   <div className="mt-1 px-3 py-2 bg-zinc-950 rounded font-mono text-sm break-all flex items-center justify-between gap-2">
                     <span>{script.rawHash}</span>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(script.rawHash)}
-                      className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
-                    >
-                      Copy
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(script.rawHash)}
+                        className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
+                        title="Copy hash"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => {
+                          const url = `${window.location.origin}/registry?hash=${script.rawHash}`;
+                          navigator.clipboard.writeText(url);
+                        }}
+                        className="px-2 py-1 text-xs bg-blue-800 hover:bg-blue-700 rounded transition-colors"
+                        title="Copy shareable link"
+                      >
+                        Share
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -241,12 +276,25 @@ export default function RegistryPage() {
                     <span className="text-sm text-gray-500">Final Hash (parameterized):</span>
                     <div className="mt-1 px-3 py-2 bg-zinc-950 rounded font-mono text-sm break-all flex items-center justify-between gap-2">
                       <span>{script.finalHash}</span>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(script.finalHash!)}
-                        className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
-                      >
-                        Copy
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => navigator.clipboard.writeText(script.finalHash!)}
+                          className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
+                          title="Copy hash"
+                        >
+                          Copy
+                        </button>
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}/registry?hash=${script.finalHash}`;
+                            navigator.clipboard.writeText(url);
+                          }}
+                          className="px-2 py-1 text-xs bg-blue-800 hover:bg-blue-700 rounded transition-colors"
+                          title="Copy shareable link"
+                        >
+                          Share
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
