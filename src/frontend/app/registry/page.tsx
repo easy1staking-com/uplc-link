@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { backendClient } from '@/lib/api/backend-client';
 import type { ScriptResponseDto, ScriptListResponseDto } from '@/lib/types/registry';
@@ -26,7 +26,8 @@ function buildCommitUrl(sourceUrl: string, commitHash: string): string {
   return `${sourceUrl}/tree/${commitHash}`;
 }
 
-export default function RegistryPage() {
+// Component that handles search params - needs to be wrapped in Suspense
+function RegistryPageContent() {
   const searchParams = useSearchParams();
   const [searchMode, setSearchMode] = useState<'hash' | 'url'>('url');
   const [searchQuery, setSearchQuery] = useState('');
@@ -337,5 +338,21 @@ export default function RegistryPage() {
         </div>
       )}
     </main>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function RegistryPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen p-8 max-w-6xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Registry Explorer</h1>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </main>
+    }>
+      <RegistryPageContent />
+    </Suspense>
   );
 }
