@@ -75,6 +75,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
         const metadata: VerificationMetadata = {
           sourceUrl: verificationData.repoUrl,
           commitHash: verificationData.commitHash,
+          sourcePath: verificationData.sourcePath,
           compilerVersion: verificationData.aikenVersion,
           parameters,
         };
@@ -108,6 +109,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
       const metadata: VerificationMetadata = {
         sourceUrl: verificationData.repoUrl,
         commitHash: verificationData.commitHash,
+        sourcePath: verificationData.sourcePath,
         compilerVersion: verificationData.aikenVersion,
         parameters,
       };

@@ -47,6 +47,7 @@ export interface VerificationData {
   repoUrl: string;
   commitHash: string;
   aikenVersion: string;
+  sourcePath?: string;
   expectedHashes: string;
   results: VerificationResultItem[];
   validatorParams: ValidatorParams;

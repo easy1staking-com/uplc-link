@@ -46,6 +46,7 @@ export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
   const [commitHash, setCommitHash] = useState("");
   const [aikenVersion, setAikenVersion] = useState("");
+  const [sourcePath, setSourcePath] = useState("");
   const [aikenVersions, setAikenVersions] = useState<string[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [expectedHashes, setExpectedHashes] = useState("");
@@ -323,6 +324,7 @@ export default function Home() {
           repoUrl,
           commitHash,
           aikenVersion,
+          sourcePath: sourcePath || undefined, // Only include if not empty
         }),
       });
 
@@ -422,6 +424,22 @@ export default function Home() {
               </>
             )}
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">
+            Source Path <span className="text-gray-500 text-xs">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={sourcePath}
+            onChange={(e) => setSourcePath(e.target.value)}
+            placeholder="e.g., contracts/my-project"
+            className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded focus:outline-none focus:border-zinc-600 font-mono text-sm"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Path within the repository to the Aiken project root (leave empty if at repository root)
+          </p>
         </div>
 
         <div>
@@ -693,6 +711,7 @@ export default function Home() {
                     repoUrl,
                     commitHash,
                     aikenVersion,
+                    sourcePath,
                     expectedHashes,
                     results: verificationResult.results,
                     validatorParams,

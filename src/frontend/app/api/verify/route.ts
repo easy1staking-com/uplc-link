@@ -11,6 +11,7 @@ interface VerifyRequest {
   repoUrl: string;
   commitHash: string;
   aikenVersion: string;
+  sourcePath?: string;
   // Note: expectedHashes and validatorParameters are no longer used
   // All comparison and parameterization happens client-side
 }
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: VerifyRequest = await request.json();
-    const { repoUrl, commitHash, aikenVersion } = body;
+    const { repoUrl, commitHash, aikenVersion, sourcePath } = body;
 
     // Validate inputs
     if (!repoUrl || !commitHash || !aikenVersion) {
@@ -59,6 +60,20 @@ export async function POST(request: NextRequest) {
       throw new Error(`Failed to clone repository: ${error instanceof Error ? error.message : String(error)}`);
     }
 
+    // Determine working directory (apply sourcePath if provided)
+    const repoDir = path.join(tempDir, "repo");
+    const workDir = sourcePath ? path.join(repoDir, sourcePath) : repoDir;
+
+    // Validate source path exists
+    if (sourcePath) {
+      try {
+        await fs.access(workDir);
+        console.log(`Using source path: ${sourcePath}`);
+      } catch (error) {
+        throw new Error(`Source path does not exist: ${sourcePath}`);
+      }
+    }
+
     // Install specific Aiken version
     console.log(`Installing Aiken ${aikenVersion}...`);
     try {
@@ -70,10 +85,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Build the contract with installed Aiken version
-    console.log(`Building contract with Aiken ${aikenVersion}...`);
+    console.log(`Building contract with Aiken ${aikenVersion} in ${workDir}...`);
     let buildOutput: string;
     try {
-      const { stdout, stderr } = await execAsync(`cd ${tempDir}/repo && aiken build`, {
+      const { stdout, stderr } = await execAsync(`cd ${workDir} && aiken build`, {
         env: { ...process.env, PATH: `${process.env.HOME}/.aiken/bin:${process.env.PATH}` },
       });
       buildOutput = stdout + stderr;
@@ -84,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract hashes from build artifacts (grouped by module.name)
-    const buildResults = await extractBuildHashes(path.join(tempDir, "repo"));
+    const buildResults = await extractBuildHashes(workDir);
 
     // Build results for client-side processing
     // Note: No server-side parameterization or hash comparison anymore
