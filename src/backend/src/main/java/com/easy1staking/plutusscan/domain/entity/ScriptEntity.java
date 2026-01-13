@@ -41,8 +41,8 @@ public class ScriptEntity {
     @Column(name = "validator_name", nullable = false)
     private String validatorName;
 
-    @Column(nullable = false, length = 50)
-    private String purpose;
+    @Column(nullable = false, length = 200)
+    private String purpose; // Comma-separated list of purposes (e.g., "spend,mint")
 
     // Hashes
     @Column(name = "raw_hash", nullable = false, length = 64)

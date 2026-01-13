@@ -60,7 +60,8 @@ public class ScriptService {
             script.setScriptName(parsed.getScriptName());
             script.setModuleName(parsed.getModuleName());
             script.setValidatorName(parsed.getValidatorName());
-            script.setPurpose(parsed.getPurpose());
+            // Convert purposes list to comma-separated string
+            script.setPurpose(String.join(",", parsed.getPurposes()));
             script.setRawHash(parsed.getRawHash());
             script.setCompiledCode(parsed.getCompiledCode());
             script.setPlutusVersion(parsed.getPlutusVersion());

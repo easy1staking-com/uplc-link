@@ -15,6 +15,7 @@ interface VerificationResult {
     validatorModule: string;
     validatorName: string;
     purposes: string[];
+    hash: string; // Script hash - used as unique key
     parameters?: ParameterSchema[];
     expected: string;
     actual: string;
@@ -34,11 +35,11 @@ interface ParameterValue {
   name: string;
   value: string;
   useValidatorRef: boolean; // Whether to use validator reference
-  referenceTo?: string; // Which validator to reference
+  referenceTo?: string; // Which validator hash to reference
 }
 
 interface ValidatorParams {
-  [validatorName: string]: ParameterValue[];
+  [hash: string]: ParameterValue[]; // Keyed by hash instead of name
 }
 
 export default function Home() {
@@ -152,7 +153,7 @@ export default function Home() {
     const newParams: ValidatorParams = {};
     results.forEach(validator => {
       if (validator.parameters && validator.parameters.length > 0) {
-        newParams[validator.validator] = validator.parameters.map(param => ({
+        newParams[validator.hash] = validator.parameters.map(param => ({
           name: param.title || "param",
           value: "",
           useValidatorRef: isHashParameter(param.title || ""),
@@ -164,10 +165,10 @@ export default function Home() {
   };
 
   // Helper: Update a parameter value
-  const updateParamValue = (validatorName: string, paramIndex: number, field: keyof ParameterValue, value: any) => {
+  const updateParamValue = (hash: string, paramIndex: number, field: keyof ParameterValue, value: any) => {
     setValidatorParams(prev => ({
       ...prev,
-      [validatorName]: prev[validatorName].map((param, idx) =>
+      [hash]: prev[hash].map((param, idx) =>
         idx === paramIndex ? { ...param, [field]: value } : param
       ),
     }));
@@ -247,7 +248,7 @@ export default function Home() {
 
         // First pass: populate with unparameterized hashes
         for (const result of verificationResult.results) {
-          newCalculatedHashes[result.validator] = result.actual;
+          newCalculatedHashes[result.hash] = result.actual;
         }
 
         // Multiple passes to handle cascading dependencies
@@ -263,7 +264,7 @@ export default function Home() {
           for (const result of verificationResult.results) {
             if (!result.compiledCode || !result.plutusVersion) continue;
 
-            const params = validatorParams[result.validator];
+            const params = validatorParams[result.hash];
             if (!params || params.length === 0) continue;
 
             // Check if we have any values
@@ -290,12 +291,12 @@ export default function Home() {
               const hash = resolveScriptHash(scriptCbor, result.plutusVersion);
 
               // Check if hash changed
-              if (newCalculatedHashes[result.validator] !== hash) {
-                newCalculatedHashes[result.validator] = hash;
+              if (newCalculatedHashes[result.hash] !== hash) {
+                newCalculatedHashes[result.hash] = hash;
                 changed = true; // Need another pass to update dependent validators
               }
             } catch (error) {
-              console.error(`Failed to calculate hash for ${result.validator}:`, error);
+              console.error(`Failed to calculate hash for ${result.hash}:`, error);
             }
           }
         }
@@ -558,8 +559,8 @@ export default function Home() {
               <div className="space-y-2">
                 {verificationResult.results.map((r, idx) => {
                   // Use calculated hash if available (from client-side parameterization)
-                  const actualHash = calculatedHashes[r.validator] || r.actual;
-                  const isParameterized = calculatedHashes[r.validator] && calculatedHashes[r.validator] !== r.actual;
+                  const actualHash = calculatedHashes[r.hash] || r.actual;
+                  const isParameterized = calculatedHashes[r.hash] && calculatedHashes[r.hash] !== r.actual;
 
                   // Dynamic comparison: check if this actual hash matches ANY expected hash
                   const matches = parsedExpectedHashes.length > 0
@@ -567,7 +568,7 @@ export default function Home() {
                     : null;
 
                   // Check if parameters are filled
-                  const params = validatorParams[r.validator] || [];
+                  const params = validatorParams[r.hash] || [];
                   const hasParameters = r.parameters && r.parameters.length > 0;
                   const parametersProvided = hasParameters && params.some(p => p.value || p.referenceTo);
 
@@ -651,10 +652,15 @@ export default function Home() {
                   {verificationResult.results
                     .filter(r => r.parameters && r.parameters.length > 0)
                     .map((r) => {
-                      const params = validatorParams[r.validator] || [];
+                      const params = validatorParams[r.hash] || [];
                       return (
-                        <div key={r.validator} className="border border-zinc-700 rounded p-4">
-                          <h4 className="font-medium mb-3">{r.validator}</h4>
+                        <div key={r.hash} className="border border-zinc-700 rounded p-4">
+                          <h4 className="font-medium mb-3">
+                            {r.validator}
+                            <span className="text-xs text-gray-400 ml-2">
+                              (Hash: {r.hash.substring(0, 16)}...)
+                            </span>
+                          </h4>
                           <div className="space-y-3">
                             {r.parameters!.map((param, pidx) => {
                               const paramValue = params[pidx];
@@ -680,7 +686,7 @@ export default function Home() {
                                       <input
                                         type="checkbox"
                                         checked={paramValue.useValidatorRef}
-                                        onChange={(e) => updateParamValue(r.validator, pidx, "useValidatorRef", e.target.checked)}
+                                        onChange={(e) => updateParamValue(r.hash, pidx, "useValidatorRef", e.target.checked)}
                                         className="mr-2"
                                       />
                                       Use validator hash reference
@@ -690,15 +696,15 @@ export default function Home() {
                                   {paramValue.useValidatorRef ? (
                                     <select
                                       value={paramValue.referenceTo || ""}
-                                      onChange={(e) => updateParamValue(r.validator, pidx, "referenceTo", e.target.value)}
+                                      onChange={(e) => updateParamValue(r.hash, pidx, "referenceTo", e.target.value)}
                                       className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm focus:outline-none focus:border-zinc-600"
                                     >
                                       <option value="">Select a validator...</option>
                                       {verificationResult.results.map((v) => {
-                                        const currentHash = calculatedHashes[v.validator] || v.actual;
+                                        const currentHash = calculatedHashes[v.hash] || v.actual;
                                         return (
-                                          <option key={v.validator} value={v.validator}>
-                                            {v.validator} ({currentHash})
+                                          <option key={v.hash} value={v.hash}>
+                                            {v.validator} ({currentHash.substring(0, 16)}...)
                                           </option>
                                         );
                                       })}
@@ -707,7 +713,7 @@ export default function Home() {
                                     <input
                                       type="text"
                                       value={paramValue.value}
-                                      onChange={(e) => updateParamValue(r.validator, pidx, "value", e.target.value)}
+                                      onChange={(e) => updateParamValue(r.hash, pidx, "value", e.target.value)}
                                       placeholder="Enter value..."
                                       className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm font-mono focus:outline-none focus:border-zinc-600"
                                     />

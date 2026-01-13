@@ -10,17 +10,18 @@ import java.util.List;
 
 /**
  * DTO representing a parsed validator from plutus.json
+ * Validators are grouped by hash (same compiled code)
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ParsedValidator {
-    private String scriptName;           // e.g., "parameters.parameters.spend"
-    private String moduleName;            // e.g., "parameters"
-    private String validatorName;         // e.g., "parameters"
-    private String purpose;               // e.g., "spend"
-    private String rawHash;               // Unparameterized hash
+    private String scriptName;           // e.g., "parameters.parameters" or "pool"
+    private String moduleName;            // e.g., "parameters" or "pool"
+    private String validatorName;         // e.g., "parameters" or "pool"
+    private List<String> purposes;        // e.g., ["spend", "else"] or ["spend", "mint"]
+    private String rawHash;               // Unparameterized hash (used as grouping key)
     private String compiledCode;          // CBOR hex
     private PlutusVersion plutusVersion;  // V1, V2, or V3
     private List<ParameterSchema> requiredParameters;  // May be null if no params

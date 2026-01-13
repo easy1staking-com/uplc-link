@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
       validatorModule: buildResult.validatorModule,
       validatorName: buildResult.validatorName,
       purposes: buildResult.purposes,
+      hash: buildResult.hash, // Script hash - used as unique key
       parameters: buildResult.parameters,
       expected: "N/A", // Not used anymore, client handles comparison
       actual: buildResult.hash,
@@ -160,9 +161,10 @@ async function extractBuildHashes(repoPath: string): Promise<BuildResult[]> {
     const plutusVersion = (data.preamble?.plutusVersion?.toUpperCase() || "V3") as "V1" | "V2" | "V3";
     console.log(`Detected Plutus version: ${plutusVersion}`);
 
-    // Group validators by module.name (title format: "module.name.purpose")
+    // Group validators by hash (same compiled code = same validator used in different contexts)
     const groupedValidators = new Map<string, {
-      hash: string;
+      validatorModule: string;
+      validatorName: string;
       purposes: string[];
       parameters?: ParameterSchema[];
       compiledCode: string;
@@ -175,37 +177,60 @@ async function extractBuildHashes(repoPath: string): Promise<BuildResult[]> {
         const compiledCode = validator.compiledCode || "";
         const parameters = validator.parameters || [];
 
-        // Parse title: "module.name.purpose"
+        // Parse title: "module.name.purpose" (v1.1.X) or "name.purpose" (v1.0.X alpha)
         const parts = title.split(".");
-        if (parts.length >= 3) {
-          const validatorModule = parts[0];
-          const validatorName = parts[1];
-          const purpose = parts[2];
-          const key = `${validatorModule}.${validatorName}`;
+        let validatorModule: string;
+        let validatorName: string;
+        let purpose: string;
 
-          if (!groupedValidators.has(key)) {
-            groupedValidators.set(key, {
-              hash,
-              purposes: [],
-              parameters: parameters.length > 0 ? parameters : undefined,
-              compiledCode
-            });
-          }
-          groupedValidators.get(key)!.purposes.push(purpose);
+        if (parts.length >= 3) {
+          // v1.1.X format: module.name.purpose
+          validatorModule = parts[0];
+          validatorName = parts[1];
+          purpose = parts[2];
+        } else if (parts.length === 2) {
+          // v1.0.X alpha format: name.purpose
+          validatorModule = parts[0]; // Use name as module for v1.0.X
+          validatorName = parts[0];
+          purpose = parts[1];
+        } else {
+          // Fallback for unexpected format
+          validatorModule = parts[0] || "unknown";
+          validatorName = parts[0] || "unknown";
+          purpose = "unknown";
         }
+
+        // Group by hash - same hash means same compiled script
+        if (!groupedValidators.has(hash)) {
+          groupedValidators.set(hash, {
+            validatorModule,
+            validatorName,
+            purposes: [],
+            parameters: parameters.length > 0 ? parameters : undefined,
+            compiledCode
+          });
+        }
+
+        // Add purpose to the list (these become "tags")
+        groupedValidators.get(hash)!.purposes.push(purpose);
       }
     }
 
     // Convert grouped validators to results
     const results: BuildResult[] = [];
-    for (const [key, value] of groupedValidators.entries()) {
-      const [validatorModule, validatorName] = key.split(".");
+    for (const [hash, value] of groupedValidators.entries()) {
+      // Create a display name for the validator
+      // v1.1.X: module.name, v1.0.X: name
+      const validator = value.validatorModule === value.validatorName
+        ? value.validatorName
+        : `${value.validatorModule}.${value.validatorName}`;
+
       results.push({
-        validator: key,
-        validatorModule,
-        validatorName,
+        validator,
+        validatorModule: value.validatorModule,
+        validatorName: value.validatorName,
         purposes: value.purposes,
-        hash: value.hash,
+        hash,
         parameters: value.parameters,
         compiledCode: value.compiledCode,
         plutusVersion,

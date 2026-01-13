@@ -13,12 +13,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Parser for Aiken v1.1.x plutus.json format
- * Supports versions v1.1.0 through v1.1.x
+ * Parser for Aiken v1.0.x (alpha) plutus.json format
+ * Supports versions v1.0.0-alpha through v1.0.x-alpha
  */
 @Component
 @Slf4j
-public class AikenV1_1_Parser implements PlutusJsonParser {
+public class AikenV1_0_Parser implements PlutusJsonParser {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -27,10 +27,10 @@ public class AikenV1_1_Parser implements PlutusJsonParser {
         try {
             JsonNode root = objectMapper.readTree(plutusJsonContent);
 
-            // Extract plutus version from preamble (default to V3 if not found)
+            // Extract plutus version from preamble (default to V2 for alpha versions)
             String plutusVersionStr = root.path("preamble")
                 .path("plutusVersion")
-                .asText("V3");
+                .asText("v2");
             PlutusVersion plutusVersion = PlutusVersion.fromString(plutusVersionStr);
 
             log.debug("Detected Plutus version: {}", plutusVersion);
@@ -55,16 +55,16 @@ public class AikenV1_1_Parser implements PlutusJsonParser {
                     continue;
                 }
 
-                // Parse title: "module.name.purpose"
+                // Parse title: "name.purpose" (v1.0.x alpha format - 2 parts)
                 String[] parts = title.split("\\.");
-                if (parts.length < 3) {
-                    log.warn("Invalid validator title format (expected module.name.purpose): {}", title);
+                if (parts.length < 2) {
+                    log.warn("Invalid validator title format for v1.0.x (expected name.purpose): {}", title);
                     continue;
                 }
 
-                String moduleName = parts[0];
-                String validatorName = parts[1];
-                String purpose = parts[2];
+                String validatorName = parts[0];
+                String purpose = parts[1];
+                String moduleName = validatorName; // Use validator name as module name for v1.0.x
 
                 // Parse parameters (if present)
                 List<ParameterSchema> parameters = new ArrayList<>();
@@ -81,16 +81,11 @@ public class AikenV1_1_Parser implements PlutusJsonParser {
 
                 // Group by hash
                 if (!groupedByHash.containsKey(hash)) {
-                    // Create script name as module.name for v1.1.x
-                    String scriptName = moduleName.equals(validatorName)
-                        ? validatorName
-                        : moduleName + "." + validatorName;
-
                     List<String> purposes = new ArrayList<>();
                     purposes.add(purpose);
 
                     ParsedValidator parsed = ParsedValidator.builder()
-                        .scriptName(scriptName)
+                        .scriptName(validatorName)
                         .moduleName(moduleName)
                         .validatorName(validatorName)
                         .purposes(purposes)
@@ -110,24 +105,22 @@ public class AikenV1_1_Parser implements PlutusJsonParser {
             // Convert to result list
             List<ParsedValidator> result = new ArrayList<>(groupedByHash.values());
 
-            log.info("Successfully parsed {} unique validators from plutus.json", result.size());
+            log.info("Successfully parsed {} unique validators from plutus.json (v1.0.x alpha)", result.size());
             return result;
 
         } catch (Exception e) {
-            throw new PlutusJsonParseException("Failed to parse plutus.json", e);
+            throw new PlutusJsonParseException("Failed to parse plutus.json (v1.0.x alpha)", e);
         }
     }
 
     @Override
     public boolean supports(String version) {
         if (version == null || version.isEmpty()) {
-            // Default to v1.1+ if no version specified
-            return true;
+            return false;
         }
 
-        // Support v1.1.0 through v1.x.x (but NOT v1.0.x)
+        // Support v1.0.0-alpha through v1.0.x-alpha
         String normalized = version.toLowerCase().replace("v", "");
-        // Match 1.1.x, 1.2.x, etc., but not 1.0.x
-        return normalized.matches("1\\.[1-9]\\d*\\.\\d+");
+        return normalized.matches("1\\.0\\.\\d+(-alpha.*)?");
     }
 }
