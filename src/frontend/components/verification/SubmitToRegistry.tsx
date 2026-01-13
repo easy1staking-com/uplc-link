@@ -30,7 +30,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
     const map: Record<string, string[]> = {};
 
     verificationData.results.forEach(result => {
-      const params = verificationData.validatorParams[result.validator];
+      const params = verificationData.validatorParams[result.hash];
       if (!params || params.length === 0) return;
 
       // Use the raw hash (before parameterization) as the key
@@ -43,7 +43,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
           // Reference to another validator - get its hash and CBOR encode
           const refHash = verificationData.calculatedHashes[param.referenceTo];
           if (!refHash) {
-            console.warn(`Reference validator ${param.referenceTo} not found`);
+            console.warn(`Reference validator hash ${param.referenceTo} not found`);
             return '';
           }
           return cborEncodeHash(refHash);
@@ -146,7 +146,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
 
   // Count validators that will be submitted
   const validatorsWithParams = verificationData.results.filter(
-    r => verificationData.validatorParams[r.validator]?.length > 0
+    r => verificationData.validatorParams[r.hash]?.length > 0
   ).length;
 
   return (
@@ -216,9 +216,9 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
                           {verificationData.results.map((result, idx) => (
                             <li key={idx}>
                               {result.validatorModule}.{result.validatorName}
-                              {verificationData.validatorParams[result.validator]?.length > 0 && (
+                              {verificationData.validatorParams[result.hash]?.length > 0 && (
                                 <span className="text-gray-400">
-                                  {' '}({verificationData.validatorParams[result.validator].length} param{verificationData.validatorParams[result.validator].length !== 1 ? 's' : ''})
+                                  {' '}({verificationData.validatorParams[result.hash].length} param{verificationData.validatorParams[result.hash].length !== 1 ? 's' : ''})
                                 </span>
                               )}
                             </li>

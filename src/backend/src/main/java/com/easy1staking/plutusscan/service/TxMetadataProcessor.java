@@ -74,18 +74,18 @@ public class TxMetadataProcessor {
                     txHash);
 
             // Check if verification request already exists
-            var existingRequest = verificationRequestRepository
-                    .findBySourceUrlAndCommitHash(
-                            plutusScanRequest.sourceUrl(),
-                            plutusScanRequest.commitHash());
-
-            if (existingRequest.isPresent()) {
-                log.info("Verification request already exists for {} @ {}, skipping duplicate from tx {}",
-                        plutusScanRequest.sourceUrl(),
-                        plutusScanRequest.commitHash(),
-                        txHash);
-                return;
-            }
+//            var existingRequest = verificationRequestRepository
+//                    .findBySourceUrlAndCommitHash(
+//                            plutusScanRequest.sourceUrl(),
+//                            plutusScanRequest.commitHash());
+//
+//            if (existingRequest.isPresent()) {
+//                log.info("Verification request already exists for {} @ {}, skipping duplicate from tx {}",
+//                        plutusScanRequest.sourceUrl(),
+//                        plutusScanRequest.commitHash(),
+//                        txHash);
+//                return;
+//            }
 
             // Create and save new verification request entity
             var entity = VerificationRequestEntity.builder()

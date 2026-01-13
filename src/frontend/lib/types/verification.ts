@@ -13,6 +13,7 @@ export interface VerificationResultItem {
   validatorModule: string;
   validatorName: string;
   purposes: string[];
+  hash: string; // Script hash - used as unique key
   parameters?: ParameterSchema[];
   expected: string;
   actual: string;
@@ -36,11 +37,11 @@ export interface ParameterValue {
   name: string;
   value: string;
   useValidatorRef: boolean;
-  referenceTo?: string;
+  referenceTo?: string; // Which validator hash to reference
 }
 
 export interface ValidatorParams {
-  [validatorName: string]: ParameterValue[];
+  [hash: string]: ParameterValue[]; // Keyed by hash instead of name
 }
 
 export interface VerificationData {
