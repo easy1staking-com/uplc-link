@@ -509,7 +509,7 @@ export default function Home() {
             {/* Overall verification summary */}
             {verificationResult.results.length > 0 && parsedExpectedHashes.length > 0 && (
               (() => {
-                const actualHashes = verificationResult.results.map(r => calculatedHashes[r.validator] || r.actual);
+                const actualHashes = verificationResult.results.map(r => calculatedHashes[r.hash] || r.actual);
                 const matchedActual = actualHashes.filter(h => parsedExpectedHashes.includes(h));
                 const unmatchedActual = actualHashes.filter(h => !parsedExpectedHashes.includes(h));
                 const unmatchedExpected = parsedExpectedHashes.filter(h => !actualHashes.includes(h));
@@ -731,7 +731,7 @@ export default function Home() {
 
             {/* Submit to Registry Section */}
             {verificationResult.success && verificationResult.results.length > 0 && parsedExpectedHashes.length > 0 && (() => {
-              const actualHashes = verificationResult.results.map(r => calculatedHashes[r.validator] || r.actual);
+              const actualHashes = verificationResult.results.map(r => calculatedHashes[r.hash] || r.actual);
               const allMatch = actualHashes.length === parsedExpectedHashes.length &&
                                actualHashes.every(h => parsedExpectedHashes.includes(h));
 
