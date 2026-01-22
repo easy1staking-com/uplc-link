@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
+import { encodeParameterValue } from "@/lib/cardano/cbor-encoding";
 
 interface ParameterSchema {
   title?: string;
@@ -36,6 +37,7 @@ interface ParameterValue {
   value: string;
   useValidatorRef: boolean; // Whether to use validator reference
   referenceTo?: string; // Which validator hash to reference
+  rawCborMode: boolean; // Whether user is providing raw CBOR hex
 }
 
 interface ValidatorParams {
@@ -112,25 +114,32 @@ export default function Home() {
   };
 
   // Helper: Check if a type is complex (requires CBOR input)
+  // Complex = anything that's not ByteArray/Hash/PolicyId or Integer
   const isComplexType = (schema: any): boolean => {
+    if (!schema) return false; // Null/undefined schemas are not complex
+    return !isByteArrayType(schema) && !isIntegerType(schema);
+  };
+
+  // Helper: Check if a type is ByteArray-like (supports validator hash references)
+  const isByteArrayType = (schema: any): boolean => {
     if (!schema) return false;
 
-    // Direct complex types
-    if (schema.dataType) {
-      return ["map", "constructor", "list"].includes(schema.dataType);
-    }
+    const type = getParameterType(schema).toLowerCase();
+    return (
+      type.includes('byte') ||
+      type.includes('hash') ||
+      type.includes('policy')// ||
+      // type.includes('address') ||
+      // type === 'data'
+    );
+  };
 
-    // Check if it's a map
-    if (schema.keys && schema.values) {
-      return true;
-    }
+  // Helper: Check if a type is integer
+  const isIntegerType = (schema: any): boolean => {
+    if (!schema) return false;
 
-    // Check if it's a constructor with fields
-    if (schema.anyOf) {
-      return true;
-    }
-
-    return false;
+    const type = getParameterType(schema).toLowerCase();
+    return type.includes('int') || type === 'integer';
   };
 
   // Helper: CBOR-encode a hash (28 bytes = 56 hex chars)
@@ -153,12 +162,16 @@ export default function Home() {
     const newParams: ValidatorParams = {};
     results.forEach(validator => {
       if (validator.parameters && validator.parameters.length > 0) {
-        newParams[validator.hash] = validator.parameters.map(param => ({
-          name: param.title || "param",
-          value: "",
-          useValidatorRef: isHashParameter(param.title || ""),
-          referenceTo: undefined,
-        }));
+        newParams[validator.hash] = validator.parameters.map(param => {
+          const isComplex = isComplexType(param.schema);
+          return {
+            name: param.title || "param",
+            value: "",
+            useValidatorRef: isHashParameter(param.title || ""),
+            referenceTo: undefined,
+            rawCborMode: isComplex, // Complex types must use raw CBOR
+          };
+        });
       }
     });
     setValidatorParams(newParams);
@@ -272,21 +285,33 @@ export default function Home() {
             if (!hasValues) continue;
 
             try {
-              // Resolve parameter values (handle validator references)
-              const resolvedParams = params.map(param => {
+              // Resolve and encode parameter values
+              const resolvedParams = params.map((param, paramIdx) => {
                 if (param.useValidatorRef && param.referenceTo) {
                   const referencedHash = newCalculatedHashes[param.referenceTo];
                   if (!referencedHash) return "";
                   // CBOR-encode the hash before passing it as a parameter
                   return cborEncodeHash(referencedHash);
                 }
-                return param.value;
+
+                if (!param.value) return "";
+
+                // Use smart encoding based on parameter type
+                const paramSchema = result.parameters?.[paramIdx];
+                const paramType = paramSchema ? getParameterType(paramSchema.schema) : "unknown";
+
+                try {
+                  return encodeParameterValue(param.value, paramType, param.rawCborMode);
+                } catch (error) {
+                  console.error(`Parameter encoding error for ${param.name}:`, error);
+                  return ""; // Skip this validator if encoding fails
+                }
               });
 
               // Skip if any param is empty
               if (resolvedParams.some(p => !p)) continue;
 
-              // Apply parameters with CBOR data type (parameters are already CBOR-encoded)
+              // Apply parameters with CBOR data type (parameters are now CBOR-encoded)
               const scriptCbor = applyParamsToScript(result.compiledCode, resolvedParams, "CBOR");
               const hash = resolveScriptHash(scriptCbor, result.plutusVersion);
 
@@ -675,22 +700,36 @@ export default function Home() {
                                     </span>
                                   </label>
 
-                                  {isComplexType(param.schema) && (
-                                    <div className="text-xs text-yellow-400 mb-2">
-                                      ℹ️ Complex type - enter CBOR-encoded hex value
-                                    </div>
-                                  )}
+                                  <div className="flex flex-col gap-2 mb-2">
+                                    {/* Show "Use validator hash reference" only for ByteArray types */}
+                                    {isByteArrayType(param.schema) && (
+                                      <label className="flex items-center text-sm text-gray-400">
+                                        <input
+                                          type="checkbox"
+                                          checked={paramValue.useValidatorRef}
+                                          onChange={(e) => updateParamValue(r.hash, pidx, "useValidatorRef", e.target.checked)}
+                                          className="mr-2"
+                                        />
+                                        Use validator hash reference
+                                      </label>
+                                    )}
 
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <label className="flex items-center text-sm text-gray-400">
-                                      <input
-                                        type="checkbox"
-                                        checked={paramValue.useValidatorRef}
-                                        onChange={(e) => updateParamValue(r.hash, pidx, "useValidatorRef", e.target.checked)}
-                                        className="mr-2"
-                                      />
-                                      Use validator hash reference
-                                    </label>
+                                    {/* Show "Raw CBOR mode" for all types */}
+                                    {!paramValue.useValidatorRef && (
+                                      <label className={`flex items-center text-sm ${isComplexType(param.schema) ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={paramValue.rawCborMode}
+                                          onChange={(e) => updateParamValue(r.hash, pidx, "rawCborMode", e.target.checked)}
+                                          disabled={isComplexType(param.schema)}
+                                          className="mr-2"
+                                        />
+                                        Raw CBOR mode (advanced)
+                                        {isComplexType(param.schema) && (
+                                          <span className="ml-1 text-xs">(required)</span>
+                                        )}
+                                      </label>
+                                    )}
                                   </div>
 
                                   {paramValue.useValidatorRef ? (
@@ -710,13 +749,37 @@ export default function Home() {
                                       })}
                                     </select>
                                   ) : (
-                                    <input
-                                      type="text"
-                                      value={paramValue.value}
-                                      onChange={(e) => updateParamValue(r.hash, pidx, "value", e.target.value)}
-                                      placeholder="Enter value..."
-                                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm font-mono focus:outline-none focus:border-zinc-600"
-                                    />
+                                    <>
+                                      <input
+                                        type="text"
+                                        value={paramValue.value}
+                                        onChange={(e) => updateParamValue(r.hash, pidx, "value", e.target.value)}
+                                        placeholder={
+                                          paramValue.rawCborMode
+                                            ? "Enter CBOR hex (e.g., 581c... or 182a...)"
+                                            : isIntegerType(param.schema)
+                                            ? "Enter number (e.g., 42)"
+                                            : isByteArrayType(param.schema)
+                                            ? "Enter hex string (e.g., abc123...)"
+                                            : "Enter CBOR hex"
+                                        }
+                                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm font-mono focus:outline-none focus:border-zinc-600"
+                                      />
+                                      {!paramValue.rawCborMode && (
+                                        <div className="text-xs text-gray-400 mt-1">
+                                          {isIntegerType(param.schema)
+                                            ? "💡 Enter as plain number - will be auto-encoded to CBOR"
+                                            : isByteArrayType(param.schema)
+                                            ? "💡 Enter as hex string - will be auto-encoded to CBOR bytearray"
+                                            : ""}
+                                        </div>
+                                      )}
+                                      {paramValue.rawCborMode && !isComplexType(param.schema) && (
+                                        <div className="text-xs text-orange-400 mt-1">
+                                          ⚠️ Raw CBOR mode: Provide complete CBOR-encoded hex value
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               );

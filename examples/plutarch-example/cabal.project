@@ -1,0 +1,43 @@
+-- Plutarch Example Project
+-- This uses Plutonomicon's Plutarch library
+
+index-state: 2025-01-13T00:00:00Z
+
+packages:
+  plutarch-example.cabal
+
+-- Use IOG's CHaP (Cardano Haskell Packages) repository
+repository cardano-haskell-packages
+  url: https://chap.intersectmbo.org/
+  secure: True
+
+-- Source repository package for Plutarch
+source-repository-package
+  type: git
+  location: https://github.com/Plutonomicon/plutarch-plutus
+  tag: v1.10.1
+
+-- Required Plutus packages
+source-repository-package
+  type: git
+  location: https://github.com/IntersectMBO/plutus
+  tag: 1.36.0.0
+  subdir:
+    plutus-core
+    plutus-ledger-api
+
+source-repository-package
+  type: git
+  location: https://github.com/IntersectMBO/cardano-api
+  tag: 9.5.0.0
+
+-- Constraints to ensure compatibility
+constraints:
+  plutarch >= 1.10,
+  plutus-core >= 1.36,
+  plutus-ledger-api >= 1.36
+
+-- Allow newer versions
+allow-newer:
+  *:base
+  *:template-haskell
