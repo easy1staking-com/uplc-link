@@ -20,6 +20,7 @@ export interface ScriptResponseDto {
 }
 
 export interface ScriptListResponseDto {
+  txHash: string;
   sourceUrl: string;
   commitHash: string;
   sourcePath: string | null;

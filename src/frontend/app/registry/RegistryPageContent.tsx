@@ -7,6 +7,7 @@ import type { ScriptResponseDto } from '@/lib/types/registry';
 
 // Extended script with verification metadata
 interface ScriptWithMetadata extends ScriptResponseDto {
+  txHash: string;
   sourceUrl: string;
   commitHash: string;
   compilerType: string;
@@ -52,6 +53,7 @@ function RegistryPageContentInner() {
         // Add metadata to each script
         const scriptsWithMetadata = (data.scripts || []).map(script => ({
           ...script,
+          txHash: data.txHash,
           sourceUrl: data.sourceUrl,
           commitHash: data.commitHash,
           compilerType: data.compilerType,
@@ -65,6 +67,7 @@ function RegistryPageContentInner() {
         const allScripts = dataList.flatMap(data =>
           (data.scripts || []).map(script => ({
             ...script,
+            txHash: data.txHash,
             sourceUrl: data.sourceUrl,
             commitHash: data.commitHash,
             compilerType: data.compilerType,
@@ -239,6 +242,22 @@ function RegistryPageContentInner() {
                       className="ml-2 px-2 py-0.5 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
                     >
                       Copy
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+                    <span className="text-gray-500">Verification: </span>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/verify?txHash=${script.txHash}`;
+                        navigator.clipboard.writeText(url);
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-800 hover:bg-blue-700 rounded transition-colors inline-flex items-center gap-1"
+                      title="Copy verification deep link"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      Share Verification
                     </button>
                   </div>
                 </div>

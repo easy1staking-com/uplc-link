@@ -215,22 +215,6 @@ export default function Home() {
             </button>
           </form>
         </div>
-
-        {/* Footer */}
-        <footer className="mt-16 pt-8 border-t border-zinc-800 text-center text-gray-500 text-sm">
-          <p>
-            Built by{" "}
-            <a
-              href="https://easy1staking.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              Easy1Staking
-            </a>
-            {" "}for the Cardano community.
-          </p>
-        </footer>
       </main>
     </>
   );
