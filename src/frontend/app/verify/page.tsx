@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { backendClient } from "@/lib/api/backend-client";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 import { encodeParameterValue } from "@/lib/cardano/cbor-encoding";
@@ -152,6 +153,7 @@ function VerifyPageContent() {
       }
     };
     fetchVersions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch deep link data when txHash is present
@@ -308,6 +310,7 @@ function VerifyPageContent() {
     };
 
     calculateHashes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validatorParams, verificationResult]);
 
   // Initialize params with stored values from deep link
@@ -424,6 +427,7 @@ function VerifyPageContent() {
       setShouldAutoVerify(false);
       handleVerify();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAutoVerify, repoUrl, commitHash, aikenVersion, expectedHashes]);
 
   // Loading state for deep link
@@ -457,12 +461,12 @@ function VerifyPageContent() {
             Transaction hash: <code className="font-mono">{txHash}</code>
           </p>
         </div>
-        <a
+        <Link
           href="/"
           className="inline-block mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
         >
           Go to Manual Verification
-        </a>
+        </Link>
       </main>
     );
   }

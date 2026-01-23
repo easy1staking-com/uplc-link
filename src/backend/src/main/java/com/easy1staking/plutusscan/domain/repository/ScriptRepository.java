@@ -47,4 +47,10 @@ public interface ScriptRepository extends JpaRepository<ScriptEntity, Long> {
     List<ScriptEntity> findBySourceUrlAndCommit(
         @Param("sourceUrl") String sourceUrl,
         @Param("commitHash") String commitHash);
+
+    /**
+     * Count distinct script hashes (using finalHash for parameterized scripts)
+     */
+    @Query("SELECT COUNT(DISTINCT s.finalHash) FROM ScriptEntity s")
+    long countDistinctScripts();
 }

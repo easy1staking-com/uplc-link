@@ -45,3 +45,9 @@ export interface VerificationResponseDto {
 
 export type VerificationStatus = 'PENDING' | 'PROCESSING' | 'VERIFIED' | 'FAILED' | 'INSUFFICIENT_PARAMS';
 export type ParameterizationStatus = 'NONE_REQUIRED' | 'PARTIAL' | 'COMPLETE';
+
+export interface StatsResponseDto {
+  verifications: number;
+  scripts: number;
+  repositories: number;
+}

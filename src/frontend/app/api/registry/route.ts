@@ -67,6 +67,8 @@ export async function GET(request: NextRequest) {
       }
 
       backendUrl = `${BACKEND_URL}/api/v1/verification-requests/by-tx/${txHash}`;
+    } else if (action === 'stats') {
+      backendUrl = `${BACKEND_URL}/api/v1/stats`;
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }

@@ -4,7 +4,7 @@
  */
 
 import { config } from '../config';
-import type { ScriptListResponseDto, VerificationResponseDto } from '../types/registry';
+import type { ScriptListResponseDto, VerificationResponseDto, StatsResponseDto } from '../types/registry';
 
 export class BackendClient {
   private baseUrl = config.backendUrl;
@@ -70,6 +70,19 @@ export class BackendClient {
    */
   async getVerificationByTxHash(txHash: string): Promise<VerificationResponseDto> {
     const response = await fetch(`/api/registry?action=byTxHash&txHash=${txHash}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get registry statistics
+   */
+  async getStats(): Promise<StatsResponseDto> {
+    const response = await fetch('/api/registry?action=stats');
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status} ${response.statusText}`);
