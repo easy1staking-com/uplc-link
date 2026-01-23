@@ -307,12 +307,31 @@ function RegistryPageContentInner() {
                   <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">
                     Parameters ({script.requiredParameters.length})
                   </summary>
-                  <div className="mt-2 space-y-2">
-                    {script.requiredParameters.map((param, pidx) => (
-                      <div key={pidx} className="text-sm">
-                        <span className="text-gray-400">{param.title || `param${pidx}`}</span>
-                      </div>
-                    ))}
+                  <div className="mt-2 space-y-3">
+                    {script.requiredParameters.map((param, pidx) => {
+                      const providedValue = script.providedParameters?.[pidx];
+                      return (
+                        <div key={pidx} className="text-sm">
+                          <div className="text-gray-400 mb-1">{param.title || `param${pidx}`}</div>
+                          {providedValue ? (
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 px-2 py-1 bg-zinc-950 rounded font-mono text-xs text-green-400 break-all">
+                                {providedValue}
+                              </code>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(providedValue)}
+                                className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors shrink-0"
+                                title="Copy CBOR value"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-500 italic">No value provided</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </details>
               )}

@@ -56,6 +56,17 @@ export async function GET(request: NextRequest) {
       }
 
       backendUrl = `${BACKEND_URL}/api/v1/scripts/search?urlPattern=${encodeURIComponent(urlPattern)}`;
+    } else if (action === 'byTxHash') {
+      const txHash = searchParams.get('txHash');
+
+      if (!txHash) {
+        return NextResponse.json(
+          { error: 'Missing required parameter: txHash' },
+          { status: 400 }
+        );
+      }
+
+      backendUrl = `${BACKEND_URL}/api/v1/verification-requests/by-tx/${txHash}`;
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }

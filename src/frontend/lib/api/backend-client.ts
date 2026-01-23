@@ -63,6 +63,20 @@ export class BackendClient {
 
     return response.json();
   }
+
+  /**
+   * Get verification request by transaction hash (for deep linking)
+   * @param txHash - Transaction hash that submitted the verification request
+   */
+  async getVerificationByTxHash(txHash: string): Promise<VerificationResponseDto> {
+    const response = await fetch(`/api/registry?action=byTxHash&txHash=${txHash}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 }
 
 // Export singleton instance

@@ -30,8 +30,10 @@ export interface ScriptListResponseDto {
 }
 
 export interface VerificationResponseDto {
+  txHash: string;
   sourceUrl: string;
   commitHash: string;
+  sourcePath: string | null;
   compilerType: string;
   compilerVersion: string;
   status: 'PENDING' | 'PROCESSING' | 'VERIFIED' | 'FAILED' | 'INSUFFICIENT_PARAMS';
