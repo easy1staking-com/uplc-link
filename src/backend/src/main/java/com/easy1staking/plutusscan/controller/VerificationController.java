@@ -61,4 +61,37 @@ public class VerificationController {
         var response = VerificationResponseDto.fromEntity(requestOpt.get());
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Get verification request by transaction hash (for deep linking)
+     * Example: GET /api/v1/verification-requests/by-tx/abc123def456...
+     */
+    @Operation(
+        summary = "Get verification request by transaction hash",
+        description = "Retrieve a verification request by the transaction hash that submitted it. " +
+                     "Useful for deep linking to pre-populate verification forms with existing data."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Verification request found",
+            content = @Content(schema = @Schema(implementation = VerificationResponseDto.class))),
+        @ApiResponse(responseCode = "404", description = "No verification request found for this transaction hash",
+            content = @Content)
+    })
+    @GetMapping("/by-tx/{txHash}")
+    public ResponseEntity<VerificationResponseDto> getVerificationByTxHash(
+            @Parameter(description = "Transaction hash (64-character hex string)", required = true)
+            @PathVariable String txHash) {
+
+        log.info("Query verification by tx hash: {}", txHash);
+
+        var requests = verificationRequestRepository.findByTxHash(txHash);
+
+        if (requests.isEmpty()) {
+            log.info("No verification request found for tx hash: {}", txHash);
+            return ResponseEntity.notFound().build();
+        }
+
+        var response = VerificationResponseDto.fromEntity(requests.get(0));
+        return ResponseEntity.ok(response);
+    }
 }

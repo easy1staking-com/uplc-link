@@ -47,6 +47,17 @@ public interface VerificationRequestRepository extends JpaRepository<Verificatio
     List<VerificationRequestEntity> findBySourceUrl(String sourceUrl);
 
     /**
+     * Count verified verification requests
+     */
+    long countByStatus(VerificationStatus status);
+
+    /**
+     * Count distinct source URLs (repositories) with verified status
+     */
+    @Query("SELECT COUNT(DISTINCT v.sourceUrl) FROM VerificationRequestEntity v WHERE v.status = :status")
+    long countDistinctSourceUrlByStatus(@Param("status") VerificationStatus status);
+
+    /**
      * Find verification requests by partial source URL match (case-insensitive)
      * @param urlPattern Pattern to search for in source URLs (e.g., "sundae-labs", "easy1staking")
      * @return List of verified requests matching the pattern, ordered by creation time

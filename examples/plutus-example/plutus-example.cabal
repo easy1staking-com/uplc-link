@@ -1,0 +1,67 @@
+cabal-version: 3.0
+name: plutus-example
+version: 0.1.0.0
+license: Apache-2.0
+author: uplc.link
+maintainer: your@email.com
+build-type: Simple
+
+common common-definitions
+  default-language: Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingStrategies
+    FlexibleContexts
+    GADTs
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    TemplateHaskell
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    NoImplicitPrelude
+
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Wincomplete-uni-patterns
+    -Wno-unused-do-bind
+    -Wno-partial-type-signatures
+    -Wmissing-export-lists
+    -Wincomplete-record-updates
+    -Wmissing-deriving-strategies
+    -Wno-name-shadowing
+    -Wunused-foralls
+    -fprint-explicit-foralls
+    -fprint-explicit-kinds
+    -fwarn-missing-import-lists
+
+executable plutus-example
+  import: common-definitions
+  main-is: AlwaysTrue.hs
+  hs-source-dirs: .
+
+  build-depends:
+    base >= 4.14 && < 5,
+    aeson,
+    bytestring,
+    cardano-api,
+    cardano-binary,
+    cardano-ledger-core,
+    plutus-core,
+    plutus-ledger-api,
+    plutus-tx,
+    plutus-tx-plugin,
+    serialise,
+    text
+
+  ghc-options:
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
+    -fplugin-opt PlutusTx.Plugin:defer-errors

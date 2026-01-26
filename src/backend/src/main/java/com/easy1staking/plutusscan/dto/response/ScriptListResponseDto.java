@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ScriptListResponseDto {
+    private String txHash;
     private String sourceUrl;
     private String commitHash;
     private String sourcePath;
@@ -38,6 +39,7 @@ public class ScriptListResponseDto {
         var request = firstScript.getVerificationRequest();
 
         return ScriptListResponseDto.builder()
+            .txHash(request.getTxHash())
             .sourceUrl(request.getSourceUrl())
             .commitHash(request.getCommitHash())
             .sourcePath(request.getSourcePath())
@@ -52,6 +54,7 @@ public class ScriptListResponseDto {
 
     public static ScriptListResponseDto fromEntity(VerificationRequestEntity entity) {
         return ScriptListResponseDto.builder()
+            .txHash(entity.getTxHash())
             .sourceUrl(entity.getSourceUrl())
             .commitHash(entity.getCommitHash())
             .sourcePath(entity.getSourcePath())
