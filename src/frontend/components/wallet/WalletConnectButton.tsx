@@ -4,7 +4,17 @@ import { useState } from 'react';
 import { useWallet, useAvailableWallets, formatWalletName, truncateAddress } from '@/lib/cardano/wallet-hooks';
 
 export function WalletConnectButton() {
-  const { wallet, address, walletName, isConnecting, connectWallet, disconnectWallet } = useWallet();
+  const {
+    wallet,
+    address,
+    walletName,
+    isConnecting,
+    isNetworkMismatch,
+    expectedNetwork,
+    walletNetworkName,
+    connectWallet,
+    disconnectWallet
+  } = useWallet();
   const availableWallets = useAvailableWallets();
   const [showDropdown, setShowDropdown] = useState(false);
   const [error, setError] = useState<string>('');
@@ -32,9 +42,11 @@ export function WalletConnectButton() {
       <div className="relative">
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded hover:border-zinc-600 transition-colors flex items-center gap-2"
+          className={`px-4 py-2 bg-zinc-900 border rounded hover:border-zinc-600 transition-colors flex items-center gap-2 ${
+            isNetworkMismatch ? 'border-red-500' : 'border-zinc-800'
+          }`}
         >
-          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+          <div className={`w-2 h-2 rounded-full ${isNetworkMismatch ? 'bg-red-500' : 'bg-green-500'}`}></div>
           <span className="text-sm">{truncateAddress(address)}</span>
           <span className="text-xs text-gray-500">({formatWalletName(walletName || '')})</span>
         </button>
@@ -45,7 +57,22 @@ export function WalletConnectButton() {
               className="fixed inset-0 z-10"
               onClick={() => setShowDropdown(false)}
             />
-            <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded shadow-lg z-20">
+            <div className="absolute right-0 mt-2 w-72 bg-zinc-900 border border-zinc-800 rounded shadow-lg z-20">
+              {/* Network mismatch warning */}
+              {isNetworkMismatch && (
+                <div className="p-3 bg-red-950 border-b border-red-800 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-red-400 text-lg">!</span>
+                    <div>
+                      <div className="text-red-300 font-medium">Wrong Network</div>
+                      <div className="text-red-400 text-xs mt-1">
+                        Your wallet is on <strong>{walletNetworkName}</strong>, but this app is configured for <strong>{expectedNetwork}</strong>.
+                        Please switch networks in your wallet.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="p-4 border-b border-zinc-800">
                 <div className="text-xs text-gray-500 mb-1">Connected Wallet</div>
                 <div className="text-sm font-mono break-all">{address}</div>

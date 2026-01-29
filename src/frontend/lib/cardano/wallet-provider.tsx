@@ -1,8 +1,9 @@
 'use client';
 
-import { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { BrowserWallet } from '@meshsdk/core';
 import type { WalletContextType } from '../types/wallet';
+import { config } from '../config';
 
 export const WalletContext = createContext<WalletContextType | null>(null);
 
@@ -12,6 +13,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [networkId, setNetworkId] = useState<number | null>(null);
   const [walletName, setWalletName] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Network validation
+  const expectedNetworkId = config.network.expectedNetworkId;
+  const isNetworkMismatch = networkId !== null && networkId !== expectedNetworkId;
+
+  // Get human-readable network names
+  const expectedNetwork = config.network.displayName;
+  const walletNetworkName = useMemo(() => {
+    if (networkId === null) return '';
+    return networkId === 1 ? 'Mainnet' : 'Testnet';
+  }, [networkId]);
 
   const connectWallet = useCallback(async (walletKey: string): Promise<void> => {
     setIsConnecting(true);
@@ -74,6 +86,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     networkId,
     walletName,
     isConnecting,
+    isNetworkMismatch,
+    expectedNetwork,
+    walletNetworkName,
     connectWallet,
     disconnectWallet,
   };

@@ -23,6 +23,9 @@ export interface WalletContextType {
   networkId: number | null;
   walletName: string | null;
   isConnecting: boolean;
+  isNetworkMismatch: boolean;
+  expectedNetwork: string;
+  walletNetworkName: string;
   connectWallet: (walletName: string) => Promise<void>;
   disconnectWallet: () => void;
 }
