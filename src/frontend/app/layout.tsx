@@ -145,7 +145,7 @@ export default function RootLayout({
                 </Link>
                 <NetworkBadge />
                 <nav className="flex gap-6">
-                  <Link href="/" className="text-sm text-gray-400 hover:text-white transition-colors">
+                  <Link href="/verify" className="text-sm text-gray-400 hover:text-white transition-colors">
                     Verify
                   </Link>
                   <Link href="/registry" className="text-sm text-gray-400 hover:text-white transition-colors">

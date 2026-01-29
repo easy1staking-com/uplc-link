@@ -7,6 +7,7 @@ import type { ScriptResponseDto } from '@/lib/types/registry';
 
 // Extended script with verification metadata
 interface ScriptWithMetadata extends ScriptResponseDto {
+  txHash: string;
   sourceUrl: string;
   commitHash: string;
   compilerType: string;
@@ -52,6 +53,7 @@ function RegistryPageContentInner() {
         // Add metadata to each script
         const scriptsWithMetadata = (data.scripts || []).map(script => ({
           ...script,
+          txHash: data.txHash,
           sourceUrl: data.sourceUrl,
           commitHash: data.commitHash,
           compilerType: data.compilerType,
@@ -65,6 +67,7 @@ function RegistryPageContentInner() {
         const allScripts = dataList.flatMap(data =>
           (data.scripts || []).map(script => ({
             ...script,
+            txHash: data.txHash,
             sourceUrl: data.sourceUrl,
             commitHash: data.commitHash,
             compilerType: data.compilerType,
@@ -241,6 +244,22 @@ function RegistryPageContentInner() {
                       Copy
                     </button>
                   </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+                    <span className="text-gray-500">Verification: </span>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/verify?txHash=${script.txHash}`;
+                        navigator.clipboard.writeText(url);
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-800 hover:bg-blue-700 rounded transition-colors inline-flex items-center gap-1"
+                      title="Copy verification deep link"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      Share Verification
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -307,12 +326,31 @@ function RegistryPageContentInner() {
                   <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">
                     Parameters ({script.requiredParameters.length})
                   </summary>
-                  <div className="mt-2 space-y-2">
-                    {script.requiredParameters.map((param, pidx) => (
-                      <div key={pidx} className="text-sm">
-                        <span className="text-gray-400">{param.title || `param${pidx}`}</span>
-                      </div>
-                    ))}
+                  <div className="mt-2 space-y-3">
+                    {script.requiredParameters.map((param, pidx) => {
+                      const providedValue = script.providedParameters?.[pidx];
+                      return (
+                        <div key={pidx} className="text-sm">
+                          <div className="text-gray-400 mb-1">{param.title || `param${pidx}`}</div>
+                          {providedValue ? (
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 px-2 py-1 bg-zinc-950 rounded font-mono text-xs text-green-400 break-all">
+                                {providedValue}
+                              </code>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(providedValue)}
+                                className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors shrink-0"
+                                title="Copy CBOR value"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-500 italic">No value provided</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </details>
               )}

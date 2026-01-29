@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VerificationResponseDto {
+    private String txHash;
     private String sourceUrl;
     private String commitHash;
     private String sourcePath;
@@ -31,6 +32,7 @@ public class VerificationResponseDto {
 
     public static VerificationResponseDto fromEntity(VerificationRequestEntity entity) {
         return VerificationResponseDto.builder()
+            .txHash(entity.getTxHash())
             .sourceUrl(entity.getSourceUrl())
             .commitHash(entity.getCommitHash())
             .sourcePath(entity.getSourcePath())
