@@ -4,6 +4,7 @@ import Image from "next/image";
 import "./globals.css";
 import { WalletProvider } from "@/lib/cardano/wallet-provider";
 import { WalletConnectButton } from "@/components/wallet/WalletConnectButton";
+import { NetworkBadge } from "@/components/NetworkBadge";
 
 export const metadata: Metadata = {
   title: {
@@ -142,6 +143,7 @@ export default function RootLayout({
                   </div>
                   <span className="text-xl font-bold">UPLC Link</span>
                 </Link>
+                <NetworkBadge />
                 <nav className="flex gap-6">
                   <Link href="/" className="text-sm text-gray-400 hover:text-white transition-colors">
                     Verify

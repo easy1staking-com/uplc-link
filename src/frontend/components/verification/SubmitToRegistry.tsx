@@ -15,7 +15,7 @@ interface SubmitToRegistryProps {
 type SubmissionStatus = 'idle' | 'building' | 'signing' | 'submitting' | 'success' | 'error';
 
 export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
-  const { wallet, address } = useWallet();
+  const { wallet, address, isNetworkMismatch, expectedNetwork, walletNetworkName } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [status, setStatus] = useState<SubmissionStatus>('idle');
   const [txHash, setTxHash] = useState<string>('');
@@ -163,6 +163,14 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
 
       {!wallet ? (
         <p className="text-yellow-400 text-sm">Connect your wallet to submit</p>
+      ) : isNetworkMismatch ? (
+        <div className="p-3 bg-red-950 border border-red-800 rounded">
+          <p className="text-red-300 text-sm font-medium">Wrong Network</p>
+          <p className="text-red-400 text-xs mt-1">
+            Your wallet is on <strong>{walletNetworkName}</strong>, but this app is configured for <strong>{expectedNetwork}</strong>.
+            Please switch networks in your wallet to submit.
+          </p>
+        </div>
       ) : (
         <button
           onClick={handleOpenModal}
@@ -310,7 +318,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
                           Copy Hash
                         </button>
                         <a
-                          href={`${config.explorerUrl}/transaction/${txHash}`}
+                          href={`${config.explorerUrl}/tx/${txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded transition-colors text-center"

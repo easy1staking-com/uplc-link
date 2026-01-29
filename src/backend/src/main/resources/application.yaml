@@ -50,6 +50,27 @@ verification:
 spring:
   config:
     activate:
+      on-profile: preprod
+
+network: preprod
+
+blockfrost:
+  url: https://cardano-preprod.blockfrost.io/api/v0/
+  key: ""
+
+store:
+  cardano:
+    host: ""
+    port: 0
+    protocol-magic: 1
+    # Start from the block that minted the ref input for the contract
+    sync-start-blockhash: 44dc5a496e08fa98dda1a0760642247a09650c110be4346493a8ccd0ccac3385
+    sync-start-slot: 113994600
+
+---
+spring:
+  config:
+    activate:
       on-profile: preview
 
 network: preview
@@ -64,8 +85,5 @@ store:
     port: 0
     protocol-magic: 2
     # Start from the block that minted the ref input for the contract
-    sync-start-blockhash: 6628e0a355d9d2fdc2a6cdb7311b8e5b649a9107a9eed54095c1e48cd2e64a36
-    sync-start-slot: 101340984
-    keep-alive-interval: 1000
-  blocks:
-    epoch-calculation-interval=14400:  # 14400 = 4 hours
+    sync-start-blockhash: 37eb58bf55c72f4a6f35ea07b4114fe38e5f2640ee906dc00284288afadcdd79
+    sync-start-slot: 103021808

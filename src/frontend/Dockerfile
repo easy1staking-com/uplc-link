@@ -3,6 +3,16 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
+# Build-time arguments for network configuration
+# CARDANO_NETWORK: mainnet | preprod | preview
+ARG CARDANO_NETWORK=mainnet
+ARG BACKEND_URL=http://localhost:8080
+
+# Set environment variables for Next.js build
+# These are baked into the static build at compile time
+ENV NEXT_PUBLIC_CARDANO_NETWORK=$CARDANO_NETWORK
+ENV NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL
+
 # Copy package files
 COPY package*.json ./
 
