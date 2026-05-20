@@ -8,7 +8,7 @@ curl -X POST http://localhost:3000/api/verify \
   -d '{
     "repoUrl": "https://github.com/aiken-lang/aiken",
     "commitHash": "main",
-    "aikenVersion": "v1.1.21",
+    "aikenVersion": "v1.1.22",
     "expectedHashes": [
       "example_hash_1",
       "example_hash_2"

@@ -146,8 +146,8 @@ function VerifyPageContent() {
         }
       } catch (error) {
         console.error("Failed to fetch Aiken versions:", error);
-        setAikenVersions(["v1.1.3", "v1.1.2", "v1.1.1", "v1.1.0", "v1.0.29"]);
-        if (!aikenVersion) setAikenVersion("v1.1.3");
+        setAikenVersions(["v1.1.22", "v1.1.21", "v1.1.19", "v1.1.17", "v1.1.0", "v1.0.29"]);
+        if (!aikenVersion) setAikenVersion("v1.1.22");
       } finally {
         setLoadingVersions(false);
       }

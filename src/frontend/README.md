@@ -151,7 +151,7 @@ Verifies a contract by building from source.
 {
   "repoUrl": "https://github.com/username/repo",
   "commitHash": "abc123...",
-  "aikenVersion": "v1.1.3"
+  "aikenVersion": "v1.1.22"
 }
 ```
 
