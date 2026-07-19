@@ -40,7 +40,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Enable via raw CIP-30, then wrap in an Evolution signing client
       const api = await injected.enable();
       const client = Client.make(chains[config.cardanoNetwork])
-        .withKoios({ baseUrl: config.network.koiosUrl })
+        .withBlockfrost({
+          baseUrl: config.network.blockfrostUrl,
+          projectId: config.blockfrostProjectId || undefined,
+        })
         .withCip30(api);
 
       const walletAddress = Address.toBech32(await client.address());
