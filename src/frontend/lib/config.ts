@@ -9,6 +9,7 @@ export interface NetworkConfig {
   displayName: string;
   explorerUrl: string;
   expectedNetworkId: number; // 0 = testnet, 1 = mainnet (CIP-30)
+  koiosUrl: string; // Keyless provider for protocol params / submission
   showBadge: boolean;
   badgeColor?: 'yellow' | 'blue';
 }
@@ -18,12 +19,14 @@ export const networkConfigs: Record<CardanoNetwork, NetworkConfig> = {
     displayName: 'Mainnet',
     explorerUrl: 'https://cexplorer.io',
     expectedNetworkId: 1,
+    koiosUrl: 'https://api.koios.rest/api/v1',
     showBadge: false,
   },
   preprod: {
     displayName: 'Preprod',
     explorerUrl: 'https://preprod.cexplorer.io',
     expectedNetworkId: 0,
+    koiosUrl: 'https://preprod.koios.rest/api/v1',
     showBadge: true,
     badgeColor: 'yellow',
   },
@@ -31,6 +34,7 @@ export const networkConfigs: Record<CardanoNetwork, NetworkConfig> = {
     displayName: 'Preview',
     explorerUrl: 'https://preview.cexplorer.io',
     expectedNetworkId: 0,
+    koiosUrl: 'https://preview.koios.rest/api/v1',
     showBadge: true,
     badgeColor: 'blue',
   },

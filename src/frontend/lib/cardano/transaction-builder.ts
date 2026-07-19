@@ -3,8 +3,13 @@
  * Builds Cardano transactions with metadata label 1984 for verification requests
  */
 
-import { Transaction, BrowserWallet } from '@meshsdk/core';
+import { Assets, TransactionHash, TransactionMetadatum } from '@evolution-sdk/evolution';
+import * as Bytes from '@evolution-sdk/evolution/Bytes';
+import type { SignBuilder } from '@evolution-sdk/evolution/sdk/builders/SignBuilder';
 import { encodeVerificationMetadata, chunkMetadata, type VerificationMetadata } from './metadata-encoder';
+import type { ConnectedWallet } from '../types/wallet';
+
+export const REGISTRY_METADATA_LABEL = 1984n;
 
 /**
  * Build a registry submission transaction
@@ -13,97 +18,65 @@ import { encodeVerificationMetadata, chunkMetadata, type VerificationMetadata } 
  * - Metadata label 1984 with verification data (chunked into 64-byte pieces)
  * - 1 ADA output back to sender (prevents "output too small" error)
  *
- * @param wallet - Connected browser wallet
+ * @param wallet - Connected wallet (raw CIP-30 handle + Evolution signing client)
  * @param metadata - Verification metadata to encode
- * @returns Unsigned transaction hex
+ * @returns Signing-ready transaction builder
  */
 export async function buildRegistrySubmissionTx(
-  wallet: BrowserWallet,
+  wallet: ConnectedWallet,
   metadata: VerificationMetadata
-): Promise<string> {
+): Promise<SignBuilder> {
+  const { client } = wallet;
+
   // Get sender address
-  const address = await wallet.getChangeAddress();
+  const address = await client.address();
 
-  // Encode metadata to CBOR hex
+  // Encode metadata to CBOR hex and chunk into 64-byte pieces
+  // (128 hex chars = 64 bytes; byte arrays, not hex strings, respect the limit)
   const metadataHex = encodeVerificationMetadata(metadata);
-
-  // Chunk metadata into 64-byte pieces (128 hex characters = 64 bytes)
-  const hexChunks = chunkMetadata(metadataHex, 128);
-
-  // Convert hex chunks to byte arrays
-  // This is important: storing hex strings would exceed the 64-byte limit
-  // (128 hex chars = 128 bytes as string, but only 64 bytes as raw bytes)
-  const byteChunks = hexChunks.map(hexChunk =>
-    Buffer.from(hexChunk, 'hex')
+  const byteChunks = chunkMetadata(metadataHex, 128).map(chunk =>
+    TransactionMetadatum.bytes(Bytes.fromHex(chunk))
   );
 
-  // Build transaction
-  const tx = new Transaction({ initiator: wallet });
-
-  // Add metadata with label 1984
-  // Store as byte arrays (not hex strings) to respect the 64-byte limit
-  tx.setMetadata(1984, byteChunks);
-
-  // Add 1 ADA output back to sender
-  // This prevents "output too small" errors and ensures transaction validity
-  tx.sendLovelace(address, '1000000');
-
-  // Build and return unsigned transaction
-  const unsignedTx = await tx.build();
-  return unsignedTx;
+  return client
+    .newTx()
+    .payToAddress({ address, assets: Assets.fromLovelace(1_000_000n) })
+    .attachMetadata({
+      label: REGISTRY_METADATA_LABEL,
+      metadata: TransactionMetadatum.array(byteChunks),
+    })
+    .build();
 }
 
 /**
  * Estimate transaction fee
  *
- * @param wallet - Connected browser wallet
- * @param metadata - Verification metadata to encode
  * @returns Estimated fee in lovelace
  */
 export async function estimateRegistrySubmissionFee(
-  wallet: BrowserWallet,
+  wallet: ConnectedWallet,
   metadata: VerificationMetadata
 ): Promise<string> {
-  try {
-    // Build the transaction
-    const unsignedTx = await buildRegistrySubmissionTx(wallet, metadata);
-
-    // MeshSDK doesn't expose fee directly from unsigned tx
-    // Return a reasonable estimate based on metadata size
-    const metadataHex = encodeVerificationMetadata(metadata);
-    const metadataSize = metadataHex.length / 2; // Convert hex to bytes
-
-    // Base fee + metadata fee
-    // Rough estimate: 0.17 ADA base + 0.000044 ADA per byte
-    const baseFee = 170000; // 0.17 ADA in lovelace
-    const metadataFee = Math.ceil(metadataSize * 44); // 44 lovelace per byte
-
-    const totalFee = baseFee + metadataFee;
-
-    return totalFee.toString();
-  } catch (error) {
-    console.error('Fee estimation failed:', error);
-    // Return conservative estimate if calculation fails
-    return '500000'; // 0.5 ADA
-  }
+  const signBuilder = await buildRegistrySubmissionTx(wallet, metadata);
+  const fee = await signBuilder.estimateFee();
+  return fee.toString();
 }
 
 /**
- * Sign and submit a transaction
+ * Sign and submit a built transaction
  *
- * @param wallet - Connected browser wallet
- * @param unsignedTx - Unsigned transaction hex
- * @returns Transaction hash
+ * @returns Transaction hash (hex)
  */
 export async function signAndSubmitTx(
-  wallet: BrowserWallet,
-  unsignedTx: string
+  signBuilder: SignBuilder,
+  onSigned?: () => void
 ): Promise<string> {
   // Sign transaction (wallet popup will appear)
-  const signedTx = await wallet.signTx(unsignedTx);
+  const submitBuilder = await signBuilder.sign();
+  onSigned?.();
 
   // Submit to blockchain
-  const txHash = await wallet.submitTx(signedTx);
+  const txHash = await submitBuilder.submit();
 
-  return txHash;
+  return TransactionHash.toHex(txHash);
 }

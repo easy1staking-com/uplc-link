@@ -6,6 +6,7 @@ import Link from "next/link";
 import { backendClient } from "@/lib/api/backend-client";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 import { encodeParameterValue } from "@/lib/cardano/cbor-encoding";
+import { applyParamsAndHash } from "@/lib/cardano/script-hash";
 import type { VerificationResponseDto } from "@/lib/types/registry";
 
 interface ParameterSchema {
@@ -239,11 +240,8 @@ function VerifyPageContent() {
     if (typeof window === "undefined") return;
     if (!verificationResult?.results) return;
 
-    const calculateHashes = async () => {
+    const calculateHashes = () => {
       try {
-        const { applyParamsToScript } = await import("@meshsdk/core-csl");
-        const { resolveScriptHash } = await import("@meshsdk/core");
-
         const newCalculatedHashes: Record<string, string> = {};
 
         for (const result of verificationResult.results) {
@@ -290,8 +288,7 @@ function VerifyPageContent() {
 
               if (resolvedParams.some(p => !p)) continue;
 
-              const scriptCbor = applyParamsToScript(result.compiledCode, resolvedParams, "CBOR");
-              const hash = resolveScriptHash(scriptCbor, result.plutusVersion);
+              const { hash } = applyParamsAndHash(result.compiledCode, resolvedParams, result.plutusVersion);
 
               if (newCalculatedHashes[result.hash] !== hash) {
                 newCalculatedHashes[result.hash] = hash;
@@ -305,7 +302,7 @@ function VerifyPageContent() {
 
         setCalculatedHashes(newCalculatedHashes);
       } catch (error) {
-        console.error("Failed to load MeshSDK:", error);
+        console.error("Failed to calculate hashes:", error);
       }
     };
 

@@ -1,14 +1,16 @@
 'use client';
 
 import { createContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { BrowserWallet } from '@meshsdk/core';
-import type { WalletContextType } from '../types/wallet';
+import { Client, Address, mainnet, preprod, preview } from '@evolution-sdk/evolution';
+import type { WalletContextType, ConnectedWallet } from '../types/wallet';
 import { config } from '../config';
 
 export const WalletContext = createContext<WalletContextType | null>(null);
 
+const chains = { mainnet, preprod, preview } as const;
+
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [wallet, setWallet] = useState<BrowserWallet | null>(null);
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [address, setAddress] = useState<string>('');
   const [networkId, setNetworkId] = useState<number | null>(null);
   const [walletName, setWalletName] = useState<string | null>(null);
@@ -30,16 +32,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Connecting to wallet:', walletKey);
 
-      // Enable wallet using MeshSDK
-      const browserWallet = await BrowserWallet.enable(walletKey);
+      const injected = window.cardano?.[walletKey];
+      if (!injected) {
+        throw new Error(`Wallet ${walletKey} not found`);
+      }
 
-      // Get wallet address and network ID
-      const walletAddress = await browserWallet.getChangeAddress();
-      const network = await browserWallet.getNetworkId();
+      // Enable via raw CIP-30, then wrap in an Evolution signing client
+      const api = await injected.enable();
+      const client = Client.make(chains[config.cardanoNetwork])
+        .withKoios({ baseUrl: config.network.koiosUrl })
+        .withCip30(api);
+
+      const walletAddress = Address.toBech32(await client.address());
+      const network = await api.getNetworkId();
 
       console.log('Wallet connected:', walletAddress);
 
-      setWallet(browserWallet);
+      setWallet({ api, client });
       setAddress(walletAddress);
       setNetworkId(network);
       setWalletName(walletKey);

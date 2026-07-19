@@ -3,8 +3,23 @@
  * Encodes verification data into ConstrData format matching the backend parser
  */
 
-import { serializeData } from '@meshsdk/core';
-import type { Data } from '@meshsdk/core';
+import * as Data from '@evolution-sdk/evolution/Data';
+import * as Bytes from '@evolution-sdk/evolution/Bytes';
+import type * as CBOR from '@evolution-sdk/evolution/CBOR';
+
+/**
+ * CBOR options matching the Java backend serialization (see SerdeTest.java):
+ * indefinite-length arrays and constr fields, definite-length maps,
+ * definite bytestrings with minimal length encoding.
+ */
+export const BACKEND_CBOR_OPTIONS: CBOR.CodecOptions = {
+  mode: 'custom',
+  useIndefiniteArrays: true,
+  useIndefiniteMaps: false,
+  useDefiniteForEmpty: true,
+  sortMapKeys: false,
+  useMinimalEncoding: true,
+};
 
 export interface VerificationMetadata {
   sourceUrl: string;
@@ -12,6 +27,10 @@ export interface VerificationMetadata {
   sourcePath?: string;
   compilerVersion: string;
   parameters: Record<string, string[]>; // scriptHash -> [CBOR-encoded params]
+}
+
+function utf8ToHex(value: string): string {
+  return Bytes.toHex(new TextEncoder().encode(value));
 }
 
 /**
@@ -32,39 +51,27 @@ export interface VerificationMetadata {
 export function encodeVerificationMetadata(data: VerificationMetadata): string {
   const { sourceUrl, commitHash, sourcePath, compilerVersion, parameters } = data;
 
-  // Build parameters map with sorted keys (canonical CBOR ordering)
-  const paramsMap = new Map<Data, Data>();
+  // Sort entries by script hash (lexicographically) for canonical CBOR ordering
+  const sortedEntries = Object.entries(parameters).sort(([a], [b]) =>
+    a.toLowerCase().localeCompare(b.toLowerCase())
+  );
 
-  // Sort entries by script hash (lexicographically) for canonical CBOR encoding
-  const sortedEntries = Object.entries(parameters).sort(([a], [b]) => {
-    // Compare hex strings lexicographically
-    return a.toLowerCase().localeCompare(b.toLowerCase());
-  });
+  const paramsMap = Data.map(
+    sortedEntries.map(([scriptHash, params]) => [
+      Data.bytearray(scriptHash),
+      Data.list(params.map(param => Data.bytearray(param))),
+    ] as [Data.Data, Data.Data])
+  );
 
-  sortedEntries.forEach(([scriptHash, params]) => {
-    // Key: script hash as hex string
-    const key: Data = scriptHash;
+  const plutusData = Data.constr(0n, [
+    Data.bytearray(utf8ToHex(sourceUrl)),
+    Data.bytearray(commitHash), // Already hex string
+    Data.bytearray(utf8ToHex(sourcePath || '')),
+    Data.bytearray(utf8ToHex(compilerVersion)),
+    paramsMap,
+  ]);
 
-    // Value: list of parameters (already CBOR encoded hex strings)
-    const value: Data = params; // Array of hex strings
-
-    paramsMap.set(key, value);
-  });
-
-  // Build ConstrData with alternative 0 (AIKEN)
-  const plutusData: Data = {
-    alternative: 0,  // AIKEN compiler type
-    fields: [
-      Buffer.from(sourceUrl, 'utf-8').toString('hex'),
-      commitHash,  // Already hex string
-      Buffer.from(sourcePath || '', 'utf-8').toString('hex'),
-      Buffer.from(compilerVersion, 'utf-8').toString('hex'),
-      paramsMap
-    ]
-  };
-
-  // Serialize to CBOR hex string
-  return serializeData(plutusData);
+  return Data.toCBORHex(plutusData, BACKEND_CBOR_OPTIONS);
 }
 
 /**
@@ -84,29 +91,23 @@ export function chunkMetadata(hex: string, chunkSize = 128): string[] {
 }
 
 /**
- * CBOR encode a hash (32 bytes)
+ * CBOR encode a hash (28/32 bytes hex)
  * Used for encoding validator references in parameters
  */
 export function cborEncodeHash(hashHex: string): string {
-  // Hash is already hex string, just serialize it
-  return serializeData(hashHex);
+  return Data.toCBORHex(Data.bytearray(hashHex), BACKEND_CBOR_OPTIONS);
 }
 
 /**
- * CBOR encode a string value
- * Used for encoding string parameters
+ * CBOR encode a string value as UTF-8 bytes
  */
 export function cborEncodeString(str: string): string {
-  // Convert string to hex and serialize
-  const hexString = Buffer.from(str, 'utf-8').toString('hex');
-  return serializeData(hexString);
+  return Data.toCBORHex(Data.bytearray(utf8ToHex(str)), BACKEND_CBOR_OPTIONS);
 }
 
 /**
  * CBOR encode an integer value
- * Used for encoding numeric parameters
  */
-export function cborEncodeInt(num: number): string {
-  // Serialize the number directly
-  return serializeData(num);
+export function cborEncodeInt(num: number | bigint): string {
+  return Data.toCBORHex(Data.int(BigInt(num)), BACKEND_CBOR_OPTIONS);
 }

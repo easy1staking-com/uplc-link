@@ -115,15 +115,11 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
       };
 
       // Build transaction
-      const unsignedTx = await buildRegistrySubmissionTx(wallet, metadata);
+      const signBuilder = await buildRegistrySubmissionTx(wallet, metadata);
 
-      // Sign transaction (wallet popup)
+      // Sign (wallet popup) and submit to blockchain
       setStatus('signing');
-      const signedTx = await wallet.signTx(unsignedTx);
-
-      // Submit to blockchain
-      setStatus('submitting');
-      const hash = await wallet.submitTx(signedTx);
+      const hash = await signAndSubmitTx(signBuilder, () => setStatus('submitting'));
 
       setStatus('success');
       setTxHash(hash);
