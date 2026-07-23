@@ -7,29 +7,35 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Service for executing shell commands with proper error handling and timeout support
+ * Service for executing external commands with proper error handling and timeout support
  */
 @Component
 @Slf4j
 public class ShellCommandExecutor {
 
     /**
-     * Execute a shell command in the specified working directory
+     * Execute a command in the specified working directory.
      *
-     * @param command Command to execute
+     * Arguments are passed directly to the process — no shell is involved, so
+     * argument values are never subject to shell interpretation. Inputs that
+     * originate on-chain (URLs, versions, paths) must still be validated, but
+     * cannot inject commands through this path.
+     *
+     * @param command Command and arguments, one element each
      * @param workingDir Working directory for the command
      * @param timeoutSeconds Maximum execution time in seconds
      * @return ProcessResult containing exit code, stdout, and stderr
      * @throws IOException If command execution fails or times out
      */
-    public ProcessResult execute(String command, Path workingDir, long timeoutSeconds) throws IOException {
+    public ProcessResult execute(List<String> command, Path workingDir, long timeoutSeconds) throws IOException {
         log.debug("Executing command: {} in directory: {}", command, workingDir);
 
-        ProcessBuilder pb = new ProcessBuilder("sh", "-c", command);
+        ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(workingDir.toFile());
 
         // Set PATH to include ~/.aiken/bin for aikup

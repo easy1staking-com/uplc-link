@@ -1,12 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
 import { toAikenReleaseTag } from "@/lib/aiken-version";
 
-const execAsync = promisify(exec);
+// No shell: arguments are passed as arrays, never interpolated into a command line
+const execFileAsync = promisify(execFile);
+
+const AIKEN_ENV = {
+  ...process.env,
+  PATH: `${process.env.HOME}/.aiken/bin:${process.env.PATH}`,
+};
+
+const COMMIT_HASH_PATTERN = /^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$/; // SHA-1 or SHA-256
+const MAX_PLUTUS_JSON_BYTES = 10 * 1024 * 1024;
+
+function isValidRepoUrl(repoUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(repoUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+  if (!url.hostname) return false;
+  // Conservative charset; also blocks git treating the value as an option
+  return /^[A-Za-z0-9.\-_:/@~%+]+$/.test(repoUrl) && !repoUrl.startsWith("-");
+}
+
+function isValidSourcePath(sourcePath: string): boolean {
+  if (sourcePath.length > 200) return false;
+  if (path.isAbsolute(sourcePath) || sourcePath.includes("\\")) return false;
+  if (!/^[A-Za-z0-9._/-]+$/.test(sourcePath)) return false;
+  // No traversal segments
+  return sourcePath.split("/").every(seg => seg !== ".." && seg !== "");
+}
 
 interface VerifyRequest {
   repoUrl: string;
@@ -58,15 +88,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!isValidRepoUrl(repoUrl)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid repository URL" },
+        { status: 400 }
+      );
+    }
+
+    if (!COMMIT_HASH_PATTERN.test(commitHash)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid commit hash (must be 40 or 64 hex chars)" },
+        { status: 400 }
+      );
+    }
+
+    if (sourcePath && !isValidSourcePath(sourcePath)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid source path" },
+        { status: 400 }
+      );
+    }
+
     // Create temporary directory
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "plutus-scan-"));
     console.log(`Created temp directory: ${tempDir}`);
 
-    // Clone repository
+    // Clone repository ("--" stops git option parsing for the URL)
     console.log(`Cloning ${repoUrl} at commit ${commitHash}...`);
+    const repoDirPath = path.join(tempDir, "repo");
     try {
-      await execAsync(`git clone ${repoUrl} ${tempDir}/repo`);
-      await execAsync(`cd ${tempDir}/repo && git checkout ${commitHash}`);
+      await execFileAsync("git", ["clone", "--", repoUrl, repoDirPath]);
+      await execFileAsync("git", ["checkout", commitHash], { cwd: repoDirPath });
     } catch (error) {
       throw new Error(`Failed to clone repository: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -75,42 +127,45 @@ export async function POST(request: NextRequest) {
     const repoDir = path.join(tempDir, "repo");
     const workDir = sourcePath ? path.join(repoDir, sourcePath) : repoDir;
 
-    // Validate source path exists
+    // Validate source path exists and stays inside the repo (symlink-safe)
     if (sourcePath) {
       try {
-        await fs.access(workDir);
+        const realWorkDir = await fs.realpath(workDir);
+        const realRepoDir = await fs.realpath(repoDir);
+        if (realWorkDir !== realRepoDir && !realWorkDir.startsWith(realRepoDir + path.sep)) {
+          throw new Error("escapes repository");
+        }
         console.log(`Using source path: ${sourcePath}`);
       } catch (error) {
-        throw new Error(`Source path does not exist: ${sourcePath}`);
+        throw new Error(`Invalid source path: ${sourcePath}`);
       }
     }
 
     // Install specific Aiken version
     console.log(`Installing Aiken ${releaseTag}...`);
     try {
-      await execAsync(`aikup install ${releaseTag}`, {
-        env: { ...process.env, PATH: `${process.env.HOME}/.aiken/bin:${process.env.PATH}` },
-      });
+      await execFileAsync("aikup", ["install", releaseTag], { env: AIKEN_ENV });
     } catch (error) {
       throw new Error(`Failed to install Aiken version ${releaseTag}: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     // Build the contract with installed Aiken version
-    console.log(`Building contract with Aiken ${aikenVersion} in ${workDir}...`);
+    console.log(`Building contract with Aiken ${releaseTag} in ${workDir}...`);
     let buildOutput: string;
     try {
-      const { stdout, stderr } = await execAsync(`cd ${workDir} && aiken build`, {
-        env: { ...process.env, PATH: `${process.env.HOME}/.aiken/bin:${process.env.PATH}` },
+      const { stdout, stderr } = await execFileAsync("aiken", ["build"], {
+        cwd: workDir,
+        env: AIKEN_ENV,
       });
       buildOutput = stdout + stderr;
       console.log(`Build output:\n${buildOutput}`);
     } catch (error: any) {
-      buildOutput = error.stdout + error.stderr;
+      buildOutput = String(error.stdout ?? "") + String(error.stderr ?? "");
       throw new Error(`Build failed: ${buildOutput}`);
     }
 
     // Extract hashes from build artifacts (grouped by module.name)
-    const buildResults = await extractBuildHashes(workDir);
+    const buildResults = await extractBuildHashes(workDir, repoDir);
 
     // Build results for client-side processing
     // Note: No server-side parameterization or hash comparison anymore
@@ -160,12 +215,25 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function extractBuildHashes(repoPath: string): Promise<BuildResult[]> {
+async function extractBuildHashes(repoPath: string, repoRoot: string): Promise<BuildResult[]> {
   // Read plutus.json file which contains the build output
   const plutusJsonPath = path.join(repoPath, "plutus.json");
 
   try {
-    const plutusJson = await fs.readFile(plutusJsonPath, "utf-8");
+    // Symlink-safe: the file must resolve inside the cloned repo (a hostile
+    // repo could ship plutus.json as a symlink to an arbitrary server file)
+    const realPlutusJson = await fs.realpath(plutusJsonPath);
+    const realRepoRoot = await fs.realpath(repoRoot);
+    if (!realPlutusJson.startsWith(realRepoRoot + path.sep)) {
+      throw new Error("plutus.json resolves outside the repository");
+    }
+
+    const stat = await fs.stat(realPlutusJson);
+    if (stat.size > MAX_PLUTUS_JSON_BYTES) {
+      throw new Error(`plutus.json too large (${stat.size} bytes)`);
+    }
+
+    const plutusJson = await fs.readFile(realPlutusJson, "utf-8");
     const data = JSON.parse(plutusJson);
 
     // Read plutusVersion from preamble (default to V3 if not found)

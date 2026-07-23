@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 /**
  * Compiler service for Aiken smart contracts
@@ -23,6 +24,8 @@ import java.nio.file.Paths;
 @RequiredArgsConstructor
 @Slf4j
 public class AikenCompilerService implements CompilerService {
+
+    private static final long MAX_PLUTUS_JSON_BYTES = 10L * 1024 * 1024;
 
     private final ShellCommandExecutor shellExecutor;
 
@@ -57,25 +60,42 @@ public class AikenCompilerService implements CompilerService {
             String repoUrl = parsedUrl.getCloneUrl();
             Path repoDir = buildDir.resolve("repo");
 
-            // Clone repository
-            log.info("Cloning {} (from {}) at commit {}", repoUrl, parsedUrl.getVcsType(), commitHash);
-            shellExecutor.execute(
-                String.format("git clone %s %s", repoUrl, repoDir),
-                buildDir,
-                buildTimeoutSeconds);
+            // Defense in depth: entity values may predate ingest validation
+            if (!SourceUrlParser.isValidCommitHash(commitHash)) {
+                throw new CompilationException("Invalid commit hash: " + commitHash);
+            }
 
-            shellExecutor.execute(
-                String.format("git checkout %s", commitHash),
-                repoDir,
-                buildTimeoutSeconds);
+            // Fetch just the requested commit (bounds clone cost for huge
+            // repos); falls back to a full clone for hosts that don't allow
+            // fetching unadvertised objects by hash
+            log.info("Fetching {} (from {}) at commit {}", repoUrl, parsedUrl.getVcsType(), commitHash);
+            try {
+                Files.createDirectories(repoDir);
+                shellExecutor.execute(List.of("git", "init", "--quiet"), repoDir, buildTimeoutSeconds);
+                shellExecutor.execute(List.of("git", "remote", "add", "origin", repoUrl), repoDir, buildTimeoutSeconds);
+                shellExecutor.execute(List.of("git", "fetch", "--depth", "1", "origin", commitHash), repoDir, buildTimeoutSeconds);
+                shellExecutor.execute(List.of("git", "checkout", "--quiet", "FETCH_HEAD"), repoDir, buildTimeoutSeconds);
+            } catch (IOException e) {
+                log.info("Shallow fetch failed ({}), falling back to full clone", e.getMessage());
+                FileUtils.deleteDirectory(repoDir.toFile());
+                shellExecutor.execute(List.of("git", "clone", "--", repoUrl, repoDir.toString()), buildDir, buildTimeoutSeconds);
+                shellExecutor.execute(List.of("git", "checkout", commitHash), repoDir, buildTimeoutSeconds);
+            }
 
-            // Change to source path if specified
+            Path realRepoDir = repoDir.toRealPath();
+
+            // Change to source path if specified — resolved path (symlinks
+            // included) must stay inside the cloned repository
             Path workDir = repoDir;
             if (sourcePath != null && !sourcePath.isEmpty()) {
                 workDir = repoDir.resolve(sourcePath);
                 if (!Files.exists(workDir)) {
                     throw new CompilationException(
                         "Source path does not exist: " + sourcePath);
+                }
+                if (!workDir.toRealPath().startsWith(realRepoDir)) {
+                    throw new CompilationException(
+                        "Source path escapes the repository: " + sourcePath);
                 }
                 log.info("Using source path: {}", workDir);
             }
@@ -85,7 +105,7 @@ public class AikenCompilerService implements CompilerService {
                 String releaseTag = toReleaseTag(compilerVersion);
                 log.info("Installing Aiken version: {} (release tag: {})", compilerVersion, releaseTag);
                 shellExecutor.execute(
-                    String.format("aikup install %s", releaseTag),
+                    List.of("aikup", "install", releaseTag),
                     workDir,
                     buildTimeoutSeconds);
             }
@@ -93,21 +113,31 @@ public class AikenCompilerService implements CompilerService {
             // Build with Aiken
             log.info("Building Aiken project in: {}", workDir);
             var buildResult = shellExecutor.execute(
-                "aiken build",
+                List.of("aiken", "build"),
                 workDir,
                 buildTimeoutSeconds);
 
             log.info("Build completed successfully");
             log.debug("Build output: {}", buildResult.getStdout());
 
-            // Read plutus.json
+            // Read plutus.json — symlink-safe: a hostile repo could ship
+            // plutus.json as a symlink to an arbitrary server file, which
+            // would otherwise end up cached and served through the API
             Path plutusJsonPath = workDir.resolve("plutus.json");
             if (!Files.exists(plutusJsonPath)) {
                 throw new CompilationException(
                     "plutus.json not found after build. Build may have failed.");
             }
+            Path realPlutusJson = plutusJsonPath.toRealPath();
+            if (!realPlutusJson.startsWith(realRepoDir)) {
+                throw new CompilationException("plutus.json resolves outside the repository");
+            }
+            long plutusJsonSize = Files.size(realPlutusJson);
+            if (plutusJsonSize > MAX_PLUTUS_JSON_BYTES) {
+                throw new CompilationException("plutus.json too large: " + plutusJsonSize + " bytes");
+            }
 
-            String plutusJsonContent = Files.readString(plutusJsonPath);
+            String plutusJsonContent = Files.readString(realPlutusJson);
             log.info("Successfully read plutus.json ({} bytes)", plutusJsonContent.length());
 
             return plutusJsonContent;
