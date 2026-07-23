@@ -7,6 +7,7 @@ import { backendClient } from "@/lib/api/backend-client";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 import { encodeParameterValue } from "@/lib/cardano/cbor-encoding";
 import { applyParamsAndHash } from "@/lib/cardano/script-hash";
+import { toAikenReleaseTag } from "@/lib/aiken-version";
 import type { VerificationResponseDto } from "@/lib/types/registry";
 
 interface ParameterSchema {
@@ -174,11 +175,12 @@ function VerifyPageContent() {
         setCommitHash(data.commitHash);
         setSourcePath(data.sourcePath || "");
 
-        // Set compiler version (strip 'v' prefix if needed for matching)
-        const version = data.compilerVersion.startsWith('v')
-          ? data.compilerVersion
-          : `v${data.compilerVersion}`;
-        setAikenVersion(version);
+        // Normalize stored compiler version (may carry "+<build>" metadata,
+        // e.g. "v1.1.21+42babe5") to the release tag the dropdown lists
+        const version = toAikenReleaseTag(data.compilerVersion);
+        if (version) {
+          setAikenVersion(version);
+        }
 
         // Build expected hashes from stored scripts (deduplicated)
         // Note: Aiken alpha and non-alpha versions group scripts differently by purpose,

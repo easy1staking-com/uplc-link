@@ -4,6 +4,7 @@ import { promisify } from "util";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
+import { toAikenReleaseTag } from "@/lib/aiken-version";
 
 const execAsync = promisify(exec);
 
@@ -47,6 +48,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize to an installable release tag (strips "+<build>" metadata,
+    // rejects anything that isn't a version so it can't reach the shell)
+    const releaseTag = toAikenReleaseTag(aikenVersion);
+    if (!releaseTag) {
+      return NextResponse.json(
+        { success: false, error: `Invalid Aiken version: ${aikenVersion}` },
+        { status: 400 }
+      );
+    }
+
     // Create temporary directory
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "plutus-scan-"));
     console.log(`Created temp directory: ${tempDir}`);
@@ -75,13 +86,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Install specific Aiken version
-    console.log(`Installing Aiken ${aikenVersion}...`);
+    console.log(`Installing Aiken ${releaseTag}...`);
     try {
-      await execAsync(`aikup install ${aikenVersion}`, {
+      await execAsync(`aikup install ${releaseTag}`, {
         env: { ...process.env, PATH: `${process.env.HOME}/.aiken/bin:${process.env.PATH}` },
       });
     } catch (error) {
-      throw new Error(`Failed to install Aiken version ${aikenVersion}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to install Aiken version ${releaseTag}: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     // Build the contract with installed Aiken version

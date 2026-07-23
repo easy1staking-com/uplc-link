@@ -82,9 +82,10 @@ public class AikenCompilerService implements CompilerService {
 
             // Install Aiken version if specified
             if (compilerVersion != null && !compilerVersion.isEmpty()) {
-                log.info("Installing Aiken version: {}", compilerVersion);
+                String releaseTag = toReleaseTag(compilerVersion);
+                log.info("Installing Aiken version: {} (release tag: {})", compilerVersion, releaseTag);
                 shellExecutor.execute(
-                    String.format("aikup install %s", compilerVersion),
+                    String.format("aikup install %s", releaseTag),
                     workDir,
                     buildTimeoutSeconds);
             }
@@ -129,5 +130,26 @@ public class AikenCompilerService implements CompilerService {
     @Override
     public CompilerType getCompilerType() {
         return CompilerType.AIKEN;
+    }
+
+    /**
+     * Convert a compiler version to an installable aikup release tag.
+     *
+     * Aiken reports its version with build metadata (e.g. "v1.1.21+42babe5",
+     * as found in plutus.json preambles and on-chain metadata), but GitHub
+     * releases are tagged without it (e.g. "v1.1.21"). aikup resolves release
+     * tags, so the "+<build>" suffix must be stripped. Also validates the
+     * result so arbitrary metadata content can't reach the shell.
+     */
+    public static String toReleaseTag(String compilerVersion) throws CompilationException {
+        String tag = compilerVersion.trim();
+        int buildMetaIdx = tag.indexOf('+');
+        if (buildMetaIdx >= 0) {
+            tag = tag.substring(0, buildMetaIdx);
+        }
+        if (!tag.matches("v?\\d+\\.\\d+\\.\\d+(-[A-Za-z0-9.]+)?")) {
+            throw new CompilationException("Invalid Aiken version: " + compilerVersion);
+        }
+        return tag;
     }
 }
