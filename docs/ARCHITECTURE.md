@@ -485,34 +485,25 @@ User ────▶ Frontend ────▶ Backend API ────▶ Postgr
 
 ### Metadata Format (Label 1984)
 
-Verification submissions use metadata label 1984:
+Verification submissions follow CIP-0171: the label-1984 value is a list of
+64-byte bytestring chunks which, concatenated, form the CBOR of a single
+`ConstrData`. The constructor ID selects the compiler (0 = Aiken) and its
+fields are a fixed six-element list:
 
-```json
-{
-  "1984": {
-    "sourceUrl": "https://github.com/sundaeswap-labs/sundae-contracts",
-    "commitHash": "35f1a0d8e3a4b2c1f9e8d7c6b5a4e3d2c1b0a9f8",
-    "aikenVersion": "v1.1.3",
-    "validators": [
-      {
-        "validator": "pool.spend",
-        "validatorModule": "validators/pool",
-        "validatorName": "spend",
-        "hash": "abc123...",
-        "purposes": ["spend"],
-        "plutusVersion": "V3",
-        "parameters": [
-          {
-            "name": "pool_nft_policy",
-            "value": "581c...",
-            "type": "PolicyId"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+| Index | Field | Type | Notes |
+|-------|-------|------|-------|
+| 0 | sourceUrl | Bytes (UTF-8) | Git-compatible repository URL |
+| 1 | commitHash | Bytes | Raw commit hash bytes (20 = SHA-1, 32 = SHA-256) |
+| 2 | sourcePath | Bytes (UTF-8) | Project directory inside the repo; empty = root |
+| 3 | compilerVersion | Bytes (UTF-8) | e.g. `v1.1.3` |
+| 4 | env | Bytes (UTF-8) | `aiken build --env` module; empty = built without the flag (`[a-z][a-z0-9_]*`, max 64) |
+| 5 | parameters | Map | script hash (28 bytes) → list of CBOR-encoded parameter values; may be empty |
+
+Encoding reference: `src/frontend/lib/cardano/metadata-encoder.ts` (frontend)
+and `PlutusScanRequest.toPlutusData()` (backend) — both are pinned to the same
+expected bytes by fixture tests (`__tests__/metadata-encoding.test.ts`,
+`SerdeTest.java`). The CIP amendment text lives in
+`docs/cip-0171-amendment-draft.md`.
 
 ### Yaci Store Integration
 

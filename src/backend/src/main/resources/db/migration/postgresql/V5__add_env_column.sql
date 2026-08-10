@@ -15,7 +15,7 @@ TRUNCATE TABLE plutus_json_cache;
 ALTER TABLE plutus_json_cache ADD COLUMN source_path VARCHAR(1000) NOT NULL DEFAULT '';
 ALTER TABLE plutus_json_cache ADD COLUMN env VARCHAR(64) NOT NULL DEFAULT '';
 
-ALTER TABLE plutus_json_cache DROP CONSTRAINT uk_plutus_json_cache_key;
+ALTER TABLE plutus_json_cache DROP CONSTRAINT IF EXISTS uk_plutus_json_cache_key;
 ALTER TABLE plutus_json_cache ADD CONSTRAINT uk_plutus_json_cache_key
     UNIQUE (compiler_type, source_url, commit_hash, compiler_version, source_path, env);
 

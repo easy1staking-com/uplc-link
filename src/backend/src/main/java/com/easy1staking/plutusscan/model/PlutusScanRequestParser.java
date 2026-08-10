@@ -30,10 +30,24 @@ public class PlutusScanRequestParser {
 
             // Fixed 6-field layout: sourceUrl, commitHash (raw bytes), sourcePath,
             // compilerVersion, env, parametersMap. Older 5-field submissions are
-            // deliberately unparseable (dropped with a log) — the schema was
-            // redefined in place and pre-existing verifications get replayed.
+            // deliberately unparseable (dropped with a log): the schema was
+            // redefined in place, indexing restarts past the old records, and
+            // the few pre-existing verifications are re-submitted on-chain in
+            // the new format — old-format txs stay unrecoverable by design.
             if (fields.size() != 6) {
                 log.warn("Unsupported field count {} (expected 6), dropping request", fields.size());
+                return Optional.empty();
+            }
+            // Structural type check so the drop rule is self-contained rather
+            // than relying on downstream semantic validation
+            for (int i = 0; i < 5; i++) {
+                if (!fields.get(i).has("bytes")) {
+                    log.warn("Field {} is not a bytestring, dropping request", i);
+                    return Optional.empty();
+                }
+            }
+            if (!fields.get(5).has("map")) {
+                log.warn("Field 5 is not a map, dropping request");
                 return Optional.empty();
             }
 

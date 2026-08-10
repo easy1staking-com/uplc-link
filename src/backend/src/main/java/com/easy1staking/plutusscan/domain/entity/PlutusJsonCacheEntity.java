@@ -42,12 +42,15 @@ public class PlutusJsonCacheEntity {
     @Column(name = "compiler_version", nullable = false)
     private String compilerVersion;
 
-    // "" for repository root — NOT NULL so the unique constraint covers it
+    // "" for repository root — NOT NULL so the unique constraint covers it.
+    // @Builder.Default only applies via the builder; construct through it
+    // (as PlutusJsonCacheService does) or set explicitly.
     @Column(name = "source_path", nullable = false, length = 1000)
     @Builder.Default
     private String sourcePath = "";
 
-    // "" when built without aiken --env — NOT NULL so the unique constraint covers it
+    // "" when built without aiken --env — NOT NULL so the unique constraint
+    // covers it; same @Builder.Default caveat as sourcePath
     @Column(name = "env", nullable = false, length = 64)
     @Builder.Default
     private String env = "";

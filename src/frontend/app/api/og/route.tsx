@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
           details: [
             { label: 'Hash', value: shortHash },
             { label: 'Source', value: `${repoName} @ ${commitShort}` },
-            { label: 'Compiler', value: `${scriptData.compilerType} ${scriptData.compilerVersion}` },
+            { label: 'Compiler', value: `${scriptData.compilerType} ${scriptData.compilerVersion}${scriptData.env ? ` (env: ${scriptData.env})` : ''}` },
           ],
         });
       } else {
