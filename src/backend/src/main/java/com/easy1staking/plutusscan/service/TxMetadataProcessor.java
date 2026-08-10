@@ -137,9 +137,11 @@ public class TxMetadataProcessor {
 
     /**
      * Find an existing request with identical content: same source, commit,
-     * compiler type/version, source path AND parameters. Same repo+commit with
-     * different parameters is a legitimate new submission (different final
-     * hashes), so parameters are part of the identity.
+     * compiler type/version, source path, env AND parameters. Same repo+commit
+     * with different parameters is a legitimate new submission (different final
+     * hashes), so parameters are part of the identity — and env is too, since
+     * aiken --env bakes different constants into the bytecode (null ≡ empty,
+     * plain string comparison, no "default" special-casing).
      */
     private Optional<VerificationRequestEntity> findContentDuplicate(PlutusScanRequest request) {
         List<VerificationRequestEntity> candidates = verificationRequestRepository
@@ -150,6 +152,7 @@ public class TxMetadataProcessor {
                 .filter(c -> c.getCompilerType() == request.compilerType())
                 .filter(c -> Objects.equals(c.getCompilerVersion(), request.compilerVersion()))
                 .filter(c -> Objects.equals(emptyToNull(c.getSourcePath()), emptyToNull(request.sourcePath())))
+                .filter(c -> Objects.equals(emptyToNull(c.getEnv()), emptyToNull(request.env())))
                 .filter(c -> Objects.equals(c.getParametersJson(), request.parameters()))
                 .findFirst();
     }
@@ -163,11 +166,14 @@ public class TxMetadataProcessor {
         var entity = VerificationRequestEntity.builder()
                 .txHash(txHash)
                 .slot(slot)
-                .sourceUrl(truncate(request.sourceUrl(), RequestValidator.MAX_SOURCE_URL_LENGTH))
-                .commitHash(truncate(request.commitHash(), 64))
+                .sourceUrl(sanitize(request.sourceUrl(), RequestValidator.MAX_SOURCE_URL_LENGTH))
+                .commitHash(sanitize(request.commitHash(), 64))
                 .compilerType(request.compilerType())
-                .compilerVersion(truncate(request.compilerVersion(), 255))
-                .sourcePath(truncate(request.sourcePath(), RequestValidator.MAX_SOURCE_PATH_LENGTH))
+                // 50 = compiler_version column width (V1); REJECTED rows carry
+                // unvalidated content, so clamp to what the insert can hold
+                .compilerVersion(sanitize(request.compilerVersion(), 50))
+                .sourcePath(sanitize(request.sourcePath(), RequestValidator.MAX_SOURCE_PATH_LENGTH))
+                .env(sanitize(request.env(), RequestValidator.MAX_ENV_LENGTH))
                 .parametersJson(request.parameters())
                 .status(status)
                 .errorMessage(errorMessage)
@@ -176,10 +182,18 @@ public class TxMetadataProcessor {
         return verificationRequestRepository.save(entity);
     }
 
-    private static String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
+    /**
+     * Make attacker-decoded text safe to persist: REJECTED rows must actually
+     * reach the database so discarded submissions stay observable. Postgres
+     * text columns reject U+0000, and values longer than the column die on
+     * insert — either would be swallowed by the catch-all above, silently
+     * violating that invariant.
+     */
+    private static String sanitize(String value, int maxLength) {
+        if (value == null) {
+            return null;
         }
-        return value.substring(0, maxLength);
+        var cleaned = value.replace("\0", "");
+        return cleaned.length() <= maxLength ? cleaned : cleaned.substring(0, maxLength);
     }
 }

@@ -26,6 +26,7 @@ export interface ScriptListResponseDto {
   sourcePath: string | null;
   compilerType: string;
   compilerVersion: string;
+  env: string | null;
   status: string;
   scripts: ScriptResponseDto[];
 }
@@ -37,6 +38,7 @@ export interface VerificationResponseDto {
   sourcePath: string | null;
   compilerType: string;
   compilerVersion: string;
+  env: string | null;
   status: 'PENDING' | 'PROCESSING' | 'VERIFIED' | 'FAILED' | 'INSUFFICIENT_PARAMS';
   errorMessage: string | null;
   createdAt: string;

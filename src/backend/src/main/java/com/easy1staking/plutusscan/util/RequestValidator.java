@@ -18,6 +18,11 @@ public final class RequestValidator {
     public static final int MAX_SOURCE_URL_LENGTH = 2000;
     public static final int MAX_SOURCE_PATH_LENGTH = 1000;
     public static final int MAX_COMPILER_VERSION_LENGTH = 100;
+    public static final int MAX_ENV_LENGTH = 64;
+
+    // Aiken env module name (snake_case module identifier); also guarantees the
+    // value can never be interpreted as a CLI option when passed to aiken build
+    private static final String ENV_PATTERN = "[a-z][a-z0-9_]*";
 
     private RequestValidator() {
     }
@@ -54,6 +59,16 @@ public final class RequestValidator {
                 }
             } else if (!version.matches("[A-Za-z0-9.+\\-]+")) {
                 return Optional.of("Invalid compiler version: " + version);
+            }
+        }
+
+        var env = request.env();
+        if (env != null && !env.isEmpty()) {
+            if (env.length() > MAX_ENV_LENGTH) {
+                return Optional.of("Environment too long (" + env.length() + " chars)");
+            }
+            if (!env.matches(ENV_PATTERN)) {
+                return Optional.of("Invalid environment: " + env);
             }
         }
 

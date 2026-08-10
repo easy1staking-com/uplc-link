@@ -16,11 +16,12 @@ public interface CompilerService {
      * @param commitHash Git commit hash (SHA-1 or SHA-256)
      * @param compilerVersion Compiler version (e.g., "v1.1.3" for Aiken)
      * @param sourcePath Path within repository (null or empty for root)
+     * @param env Build environment (aiken --env module; null or empty = build without the flag)
      * @return plutus.json content as a JSON string
      * @throws CompilationException If compilation fails
      */
     String compile(String sourceUrl, String commitHash,
-                   String compilerVersion, String sourcePath)
+                   String compilerVersion, String sourcePath, String env)
             throws CompilationException;
 
     /**

@@ -61,12 +61,15 @@ public class VerificationService {
             request.setErrorMessage(null);
             verificationRequestRepository.save(request);
 
-            // Check cache
+            // Check cache (sourcePath and env are part of the key — both change
+            // which artifact a build produces)
             var cachedPlutusJson = cacheService.get(
                 request.getCompilerType(),
                 request.getSourceUrl(),
                 request.getCommitHash(),
-                request.getCompilerVersion()
+                request.getCompilerVersion(),
+                request.getSourcePath(),
+                request.getEnv()
             );
 
             String plutusJsonContent;
@@ -92,7 +95,8 @@ public class VerificationService {
                     request.getSourceUrl(),
                     request.getCommitHash(),
                     request.getCompilerVersion(),
-                    request.getSourcePath()
+                    request.getSourcePath(),
+                    request.getEnv()
                 );
 
                 // Cache the result
@@ -101,6 +105,8 @@ public class VerificationService {
                     request.getSourceUrl(),
                     request.getCommitHash(),
                     request.getCompilerVersion(),
+                    request.getSourcePath(),
+                    request.getEnv(),
                     plutusJsonContent
                 );
             }

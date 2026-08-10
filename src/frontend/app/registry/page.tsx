@@ -102,7 +102,7 @@ export async function generateMetadata({
     ? 'Partially parameterized'
     : 'Not parameterized';
 
-  const description = `Verified ${script.purpose} script: ${scriptName} | ${script.plutusVersion} | ${statusText} | Compiled with ${scriptData.compilerType} ${scriptData.compilerVersion}`;
+  const description = `Verified ${script.purpose} script: ${scriptName} | ${script.plutusVersion} | ${statusText} | Compiled with ${scriptData.compilerType} ${scriptData.compilerVersion}${scriptData.env ? ` (env: ${scriptData.env})` : ''}`;
 
   // Extract repository name from source URL for a cleaner display
   const repoName = scriptData.sourceUrl.split('/').slice(-2).join('/');

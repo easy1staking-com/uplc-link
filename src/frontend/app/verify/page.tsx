@@ -64,6 +64,7 @@ function VerifyPageContent() {
   const [commitHash, setCommitHash] = useState("");
   const [aikenVersion, setAikenVersion] = useState("");
   const [sourcePath, setSourcePath] = useState("");
+  const [env, setEnv] = useState("");
   const [aikenVersions, setAikenVersions] = useState<string[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [expectedHashes, setExpectedHashes] = useState("");
@@ -174,6 +175,7 @@ function VerifyPageContent() {
         setRepoUrl(data.sourceUrl);
         setCommitHash(data.commitHash);
         setSourcePath(data.sourcePath || "");
+        setEnv(data.env || "");
 
         // Normalize stored compiler version (may carry "+<build>" metadata,
         // e.g. "v1.1.21+42babe5") to the release tag the dropdown lists
@@ -395,6 +397,7 @@ function VerifyPageContent() {
           commitHash,
           aikenVersion,
           sourcePath: sourcePath || undefined,
+          env: env.trim() || undefined,
         }),
       });
 
@@ -578,6 +581,22 @@ function VerifyPageContent() {
             />
             <p className="text-xs text-gray-500 mt-1">
               Path within the repository to the Aiken project root (leave empty if at repository root)
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Environment <span className="text-gray-500 text-xs">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={env}
+              onChange={(e) => setEnv(e.target.value)}
+              placeholder="e.g., mainnet"
+              className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded focus:outline-none focus:border-zinc-600 font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Aiken environment module passed as <code>aiken build --env</code> (leave empty if the project was built without one)
             </p>
           </div>
 
@@ -891,6 +910,7 @@ function VerifyPageContent() {
                       commitHash,
                       aikenVersion,
                       sourcePath,
+                      env: env.trim() || undefined,
                       expectedHashes,
                       results: verificationResult.results,
                       validatorParams,

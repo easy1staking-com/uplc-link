@@ -12,6 +12,7 @@ interface ScriptWithMetadata extends ScriptResponseDto {
   commitHash: string;
   compilerType: string;
   compilerVersion: string;
+  env: string | null;
 }
 
 // Build commit URL based on repository platform
@@ -58,6 +59,7 @@ function RegistryPageContentInner() {
           commitHash: data.commitHash,
           compilerType: data.compilerType,
           compilerVersion: data.compilerVersion,
+          env: data.env,
         }));
         setResults(scriptsWithMetadata);
       } else {
@@ -72,6 +74,7 @@ function RegistryPageContentInner() {
             commitHash: data.commitHash,
             compilerType: data.compilerType,
             compilerVersion: data.compilerVersion,
+            env: data.env,
           }))
         );
         setResults(allScripts);
@@ -192,6 +195,14 @@ function RegistryPageContentInner() {
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.purpose}</span>
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.plutusVersion}</span>
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.compilerType} {script.compilerVersion}</span>
+                    {script.env && (
+                      <span
+                        className="px-2 py-1 bg-purple-950 border border-purple-800 rounded text-xs text-purple-200"
+                        title="Built with aiken build --env; reproducing the hash requires this environment"
+                      >
+                        env: {script.env}
+                      </span>
+                    )}
                   </div>
                 </div>
 

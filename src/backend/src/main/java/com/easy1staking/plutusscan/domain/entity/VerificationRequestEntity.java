@@ -55,6 +55,10 @@ public class VerificationRequestEntity {
     @Column(name = "source_path", length = 1000)
     private String sourcePath;
 
+    // Aiken --env module name; null = built without the flag
+    @Column(name = "env", length = 64)
+    private String env;
+
     // Metadata - JSONB field for script_hash → parameter list mapping
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "parameters_json", columnDefinition = "jsonb")

@@ -14,7 +14,12 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Service for caching plutus.json build artifacts
+ * Service for caching plutus.json build artifacts.
+ *
+ * The cache key is every input that changes the build output: compiler type,
+ * source URL, commit, compiler version, source path and env (aiken --env).
+ * sourcePath/env are normalized to "" so the DB unique constraint applies
+ * (nullable columns would make "absent" values non-unique in Postgres).
  */
 @Service
 @RequiredArgsConstructor
@@ -31,12 +36,13 @@ public class PlutusJsonCacheService {
      */
     @Transactional(readOnly = true)
     public Optional<String> get(CompilerType compilerType, String sourceUrl,
-                                String commitHash, String compilerVersion) {
-        log.debug("Checking cache for {} @ {} with {} {}",
-            sourceUrl, commitHash, compilerType, compilerVersion);
+                                String commitHash, String compilerVersion,
+                                String sourcePath, String env) {
+        log.debug("Checking cache for {} @ {} with {} {} path={} env={}",
+            sourceUrl, commitHash, compilerType, compilerVersion, sourcePath, env);
 
-        return cacheRepository.findByCompilerTypeAndSourceUrlAndCommitHashAndCompilerVersion(
-                compilerType, sourceUrl, commitHash, compilerVersion)
+        return cacheRepository.findByCompilerTypeAndSourceUrlAndCommitHashAndCompilerVersionAndSourcePathAndEnv(
+                compilerType, sourceUrl, commitHash, compilerVersion, nullToEmpty(sourcePath), nullToEmpty(env))
             .map(entity -> {
                 try {
                     String json = objectMapper.writeValueAsString(entity.getPlutusJsonContent());
@@ -54,7 +60,8 @@ public class PlutusJsonCacheService {
      */
     @Transactional
     public void put(CompilerType compilerType, String sourceUrl,
-                   String commitHash, String compilerVersion, String plutusJsonContent) {
+                   String commitHash, String compilerVersion,
+                   String sourcePath, String env, String plutusJsonContent) {
         try {
             log.info("Caching plutus.json for {} @ {}", sourceUrl, commitHash);
 
@@ -63,8 +70,8 @@ public class PlutusJsonCacheService {
             Map<String, Object> contentMap = objectMapper.readValue(plutusJsonContent, Map.class);
 
             // Check if already exists
-            var existing = cacheRepository.findByCompilerTypeAndSourceUrlAndCommitHashAndCompilerVersion(
-                compilerType, sourceUrl, commitHash, compilerVersion);
+            var existing = cacheRepository.findByCompilerTypeAndSourceUrlAndCommitHashAndCompilerVersionAndSourcePathAndEnv(
+                compilerType, sourceUrl, commitHash, compilerVersion, nullToEmpty(sourcePath), nullToEmpty(env));
 
             if (existing.isPresent()) {
                 log.debug("Cache entry already exists, updating");
@@ -76,6 +83,8 @@ public class PlutusJsonCacheService {
                     .sourceUrl(sourceUrl)
                     .commitHash(commitHash)
                     .compilerVersion(compilerVersion)
+                    .sourcePath(nullToEmpty(sourcePath))
+                    .env(nullToEmpty(env))
                     .plutusJsonContent(contentMap)
                     .build();
 
@@ -85,5 +94,9 @@ public class PlutusJsonCacheService {
         } catch (JsonProcessingException e) {
             log.error("Failed to parse plutus.json for caching", e);
         }
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }

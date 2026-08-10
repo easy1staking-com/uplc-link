@@ -49,6 +49,7 @@ export interface VerificationData {
   commitHash: string;
   aikenVersion: string;
   sourcePath?: string;
+  env?: string; // aiken --env module; empty/absent = built without the flag
   expectedHashes: string;
   results: VerificationResultItem[];
   validatorParams: ValidatorParams;
