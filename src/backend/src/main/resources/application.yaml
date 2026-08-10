@@ -8,6 +8,10 @@ spring:
       - classpath:db/store/{vendor}
       - classpath:db/migration/postgresql
     out-of-order: true
+    # yaci-store 2.x dropped the metadata store's V0_600_2__indexes.sql script;
+    # databases migrated under 0.1.6 have it applied, so tolerate applied-but-
+    # no-longer-resolved migrations instead of failing validation on upgrade
+    ignore-migration-patterns: "*:missing"
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/plutus_scan}
     username: ${DB_USERNAME:cardano}
@@ -29,8 +33,6 @@ store:
     sync-start-blockhash: 586ead1770fc2a59021b824bc0d65bf1d6060585384f257971204d5925f054c2
     sync-start-slot: 154984561
     keep-alive-interval: 1000
-  blocks:
-    epoch-calculation-interval=14400:  # 14400 = 4 hours
 
 management:
   endpoints:
