@@ -45,6 +45,9 @@ verification:
   poll-interval-ms: 30000
   build-timeout-seconds: 300
   temp-dir: /tmp/plutus-scan-builds
+  # How long identical FAILED/REJECTED content is skipped at ingest before a
+  # resubmission is allowed to trigger a fresh build
+  failure-retry-ttl-hours: 24
 
 ---
 spring:

@@ -7,18 +7,34 @@ import com.bloxbean.cardano.yaci.store.metadata.domain.TxMetadataLabel;
 import com.easy1staking.plutusscan.domain.entity.VerificationRequestEntity;
 import com.easy1staking.plutusscan.domain.enums.VerificationStatus;
 import com.easy1staking.plutusscan.domain.repository.VerificationRequestRepository;
+import com.easy1staking.plutusscan.model.PlutusScanRequest;
 import com.easy1staking.plutusscan.model.PlutusScanRequestParser;
-import com.easy1staking.plutusscan.util.SourceUrlParser;
+import com.easy1staking.plutusscan.util.RequestValidator;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.easy1staking.plutusscan.model.Constants.PLUTUS_SCAN_METADATA_ID;
 
+/**
+ * Ingests label-1984 metadata from the chain into verification requests.
+ *
+ * All input here is attacker-controlled: anyone can submit a 1984 tx directly
+ * on-chain, bypassing any frontend. Validation must be complete at this
+ * boundary. Semantically invalid requests are persisted as REJECTED (never
+ * retried) so discarded submissions remain observable; only CBOR that cannot
+ * even be parsed into the request shape is dropped with a log (the entity's
+ * non-null columns cannot be filled for those).
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -28,12 +44,21 @@ public class TxMetadataProcessor {
 
     private final VerificationRequestRepository verificationRequestRepository;
 
+    @Value("${verification.failure-retry-ttl-hours:24}")
+    private long failureRetryTtlHours;
+
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public void process(EventMetadata eventMetadata, TxMetadataLabel txMetadataLabel) {
         try {
             var cbor = txMetadataLabel.getCbor();
             var txHash = txMetadataLabel.getTxHash();
             var slot = eventMetadata.getSlot();
+
+            // Idempotency: yaci-store re-emits events on re-sync/rollback
+            if (verificationRequestRepository.existsByTxHash(txHash)) {
+                log.info("Tx {} already ingested, skipping", txHash);
+                return;
+            }
 
             // Parse CBOR metadata
             var dataMap = (MapPlutusData) PlutusData.deserialize(HexUtil.decodeHexString(cbor));
@@ -55,53 +80,41 @@ public class TxMetadataProcessor {
 
             var plutusScanRequest = plutusScanRequestOpt.get();
 
-            // Validate source URL
-            var parsedUrl = SourceUrlParser.parse(plutusScanRequest.sourceUrl());
-            if (parsedUrl.isEmpty()) {
-                log.warn("Invalid source URL format: {}", plutusScanRequest.sourceUrl());
-                return;
-            }
-
-            // Validate commit hash (20 or 32 bytes = 40 or 64 hex chars)
-            if (!SourceUrlParser.isValidCommitHash(plutusScanRequest.commitHash())) {
-                log.warn("Invalid commit hash: {} (must be 40 or 64 hex chars)", plutusScanRequest.commitHash());
-                return;
-            }
-
             log.info("Received verification request: {} @ {} from tx {}",
                     plutusScanRequest.sourceUrl(),
                     plutusScanRequest.commitHash(),
                     txHash);
 
-            // Check if verification request already exists
-//            var existingRequest = verificationRequestRepository
-//                    .findBySourceUrlAndCommitHash(
-//                            plutusScanRequest.sourceUrl(),
-//                            plutusScanRequest.commitHash());
-//
-//            if (existingRequest.isPresent()) {
-//                log.info("Verification request already exists for {} @ {}, skipping duplicate from tx {}",
-//                        plutusScanRequest.sourceUrl(),
-//                        plutusScanRequest.commitHash(),
-//                        txHash);
-//                return;
-//            }
+            // Semantic validation — invalid content becomes a REJECTED record
+            var rejection = RequestValidator.validate(plutusScanRequest);
+            if (rejection.isPresent()) {
+                log.warn("Rejecting request from tx {}: {}", txHash, rejection.get());
+                saveRequest(plutusScanRequest, txHash, slot, VerificationStatus.REJECTED, rejection.get());
+                return;
+            }
 
-            // Create and save new verification request entity
-            var entity = VerificationRequestEntity.builder()
-                    .txHash(txHash)
-                    .slot(slot)
-                    .sourceUrl(plutusScanRequest.sourceUrl())
-                    .commitHash(plutusScanRequest.commitHash())
-                    .compilerType(plutusScanRequest.compilerType())
-                    .compilerVersion(plutusScanRequest.compilerVersion())
-                    .sourcePath(plutusScanRequest.sourcePath())
-                    .parametersJson(plutusScanRequest.parameters())
-                    .status(VerificationStatus.PENDING)
-                    .retryCount(0)
-                    .build();
+            // Content dedup: identical VERIFIED content is never reprocessed;
+            // identical FAILED/REJECTED content is skipped within the TTL so
+            // failure spam can't force rebuilds, but retries reopen later
+            var duplicate = findContentDuplicate(plutusScanRequest);
+            if (duplicate.isPresent()) {
+                var existing = duplicate.get();
+                if (existing.getStatus() == VerificationStatus.VERIFIED) {
+                    log.info("Content of tx {} already VERIFIED as request id={}, skipping",
+                            txHash, existing.getId());
+                    return;
+                }
+                var retryOpensAt = existing.getUpdatedAt().plusHours(failureRetryTtlHours);
+                if (LocalDateTime.now().isBefore(retryOpensAt)) {
+                    log.info("Content of tx {} matches {} request id={} within TTL (retry opens {}), skipping",
+                            txHash, existing.getStatus(), existing.getId(), retryOpensAt);
+                    return;
+                }
+                log.info("Content of tx {} matches {} request id={} but TTL expired, reprocessing",
+                        txHash, existing.getStatus(), existing.getId());
+            }
 
-            verificationRequestRepository.save(entity);
+            var entity = saveRequest(plutusScanRequest, txHash, slot, VerificationStatus.PENDING, null);
 
             log.info("Created verification request id={} for {} @ {}, tx={}, slot={}",
                     entity.getId(),
@@ -110,11 +123,63 @@ public class TxMetadataProcessor {
                     txHash,
                     slot);
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // Throwable, not Exception: hostile metadata can nest PlutusData
+            // deeply enough to raise StackOverflowError during the recursive
+            // deserialize/parse. That's an Error, not an Exception, and letting
+            // it escape would kill the yaci-store event thread — so one crafted
+            // tx must not take down ingest. Nothing is persisted on this path.
             var txHash = txMetadataLabel.getTxHash();
             var blockHash = eventMetadata.getBlockHash();
             log.error("Failed to process verification metadata from tx {} at block {}", txHash, blockHash, e);
         }
     }
 
+    /**
+     * Find an existing request with identical content: same source, commit,
+     * compiler type/version, source path AND parameters. Same repo+commit with
+     * different parameters is a legitimate new submission (different final
+     * hashes), so parameters are part of the identity.
+     */
+    private Optional<VerificationRequestEntity> findContentDuplicate(PlutusScanRequest request) {
+        List<VerificationRequestEntity> candidates = verificationRequestRepository
+                .findBySourceUrlAndCommitHashOrderByCreatedAtDesc(
+                        request.sourceUrl(), request.commitHash());
+
+        return candidates.stream()
+                .filter(c -> c.getCompilerType() == request.compilerType())
+                .filter(c -> Objects.equals(c.getCompilerVersion(), request.compilerVersion()))
+                .filter(c -> Objects.equals(emptyToNull(c.getSourcePath()), emptyToNull(request.sourcePath())))
+                .filter(c -> Objects.equals(c.getParametersJson(), request.parameters()))
+                .findFirst();
+    }
+
+    private static String emptyToNull(String value) {
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    private VerificationRequestEntity saveRequest(PlutusScanRequest request, String txHash, Long slot,
+                                                  VerificationStatus status, String errorMessage) {
+        var entity = VerificationRequestEntity.builder()
+                .txHash(txHash)
+                .slot(slot)
+                .sourceUrl(truncate(request.sourceUrl(), RequestValidator.MAX_SOURCE_URL_LENGTH))
+                .commitHash(truncate(request.commitHash(), 64))
+                .compilerType(request.compilerType())
+                .compilerVersion(truncate(request.compilerVersion(), 255))
+                .sourcePath(truncate(request.sourcePath(), RequestValidator.MAX_SOURCE_PATH_LENGTH))
+                .parametersJson(request.parameters())
+                .status(status)
+                .errorMessage(errorMessage)
+                .retryCount(0)
+                .build();
+        return verificationRequestRepository.save(entity);
+    }
+
+    private static String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
+    }
 }

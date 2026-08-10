@@ -59,8 +59,10 @@ public class VerificationScheduler {
                 } catch (Exception e) {
                     log.error("Unexpected error processing verification request id={}",
                         request.getId(), e);
-                    // Error is already handled in VerificationService
-                    // (status set to FAILED, retry count incremented)
+                    // processVerification rolled back its transaction —
+                    // record the failure in a fresh one
+                    verificationService.markFailed(request.getId(),
+                        e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
                 }
             });
 

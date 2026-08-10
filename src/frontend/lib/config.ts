@@ -9,6 +9,7 @@ export interface NetworkConfig {
   displayName: string;
   explorerUrl: string;
   expectedNetworkId: number; // 0 = testnet, 1 = mainnet (CIP-30)
+  blockfrostUrl: string; // Provider for protocol params / submission (same as backend)
   showBadge: boolean;
   badgeColor?: 'yellow' | 'blue';
 }
@@ -18,12 +19,14 @@ export const networkConfigs: Record<CardanoNetwork, NetworkConfig> = {
     displayName: 'Mainnet',
     explorerUrl: 'https://cexplorer.io',
     expectedNetworkId: 1,
+    blockfrostUrl: 'https://cardano-mainnet.blockfrost.io/api/v0',
     showBadge: false,
   },
   preprod: {
     displayName: 'Preprod',
     explorerUrl: 'https://preprod.cexplorer.io',
     expectedNetworkId: 0,
+    blockfrostUrl: 'https://cardano-preprod.blockfrost.io/api/v0',
     showBadge: true,
     badgeColor: 'yellow',
   },
@@ -31,6 +34,7 @@ export const networkConfigs: Record<CardanoNetwork, NetworkConfig> = {
     displayName: 'Preview',
     explorerUrl: 'https://preview.cexplorer.io',
     expectedNetworkId: 0,
+    blockfrostUrl: 'https://cardano-preview.blockfrost.io/api/v0',
     showBadge: true,
     badgeColor: 'blue',
   },
@@ -46,6 +50,9 @@ const resolvedNetwork: CardanoNetwork = validNetworks.includes(currentNetwork) ?
 export const config = {
   // Backend API URL
   backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080',
+
+  // Blockfrost project id for the current network (exposed to the browser)
+  blockfrostProjectId: process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID || '',
 
   // Cardano network (mainnet, preprod, preview)
   cardanoNetwork: resolvedNetwork,

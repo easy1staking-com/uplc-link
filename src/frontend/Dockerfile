@@ -7,11 +7,13 @@ WORKDIR /app
 # CARDANO_NETWORK: mainnet | preprod | preview
 ARG CARDANO_NETWORK=mainnet
 ARG BACKEND_URL=http://localhost:8080
+ARG BLOCKFROST_PROJECT_ID=""
 
 # Set environment variables for Next.js build
 # These are baked into the static build at compile time
 ENV NEXT_PUBLIC_CARDANO_NETWORK=$CARDANO_NETWORK
 ENV NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL
+ENV NEXT_PUBLIC_BLOCKFROST_PROJECT_ID=$BLOCKFROST_PROJECT_ID
 
 # Copy package files
 COPY package*.json ./

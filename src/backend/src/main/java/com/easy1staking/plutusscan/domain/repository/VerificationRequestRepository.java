@@ -23,6 +23,18 @@ public interface VerificationRequestRepository extends JpaRepository<Verificatio
         String sourceUrl, String commitHash);
 
     /**
+     * Idempotency check: has this on-chain tx already been ingested?
+     * Protects against yaci-store re-emitting events on re-sync/rollback.
+     */
+    boolean existsByTxHash(String txHash);
+
+    /**
+     * All requests for the same source+commit, newest first (content dedup)
+     */
+    List<VerificationRequestEntity> findBySourceUrlAndCommitHashOrderByCreatedAtDesc(
+        String sourceUrl, String commitHash);
+
+    /**
      * Find pending verification requests for processing
      * @param status Verification status to filter by
      * @param maxRetries Maximum retry count

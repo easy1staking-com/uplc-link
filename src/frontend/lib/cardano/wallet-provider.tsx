@@ -1,14 +1,16 @@
 'use client';
 
 import { createContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { BrowserWallet } from '@meshsdk/core';
-import type { WalletContextType } from '../types/wallet';
+import { Client, Address, mainnet, preprod, preview } from '@evolution-sdk/evolution';
+import type { WalletContextType, ConnectedWallet } from '../types/wallet';
 import { config } from '../config';
 
 export const WalletContext = createContext<WalletContextType | null>(null);
 
+const chains = { mainnet, preprod, preview } as const;
+
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [wallet, setWallet] = useState<BrowserWallet | null>(null);
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [address, setAddress] = useState<string>('');
   const [networkId, setNetworkId] = useState<number | null>(null);
   const [walletName, setWalletName] = useState<string | null>(null);
@@ -30,16 +32,42 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Connecting to wallet:', walletKey);
 
-      // Enable wallet using MeshSDK
-      const browserWallet = await BrowserWallet.enable(walletKey);
+      const injected = window.cardano?.[walletKey];
+      if (!injected) {
+        throw new Error(`Wallet ${walletKey} not found`);
+      }
 
-      // Get wallet address and network ID
-      const walletAddress = await browserWallet.getChangeAddress();
-      const network = await browserWallet.getNetworkId();
+      // Enable via raw CIP-30, then wrap in an Evolution signing client
+      const api = await injected.enable();
 
-      console.log('Wallet connected:', walletAddress);
+      // Read the network id from the raw CIP-30 handle FIRST. The Evolution
+      // client validates the wallet's network against the configured chain and
+      // throws on a mismatch, so we must capture networkId before touching the
+      // client — otherwise the "wrong network" UI (which keys off networkId)
+      // would never render and connect would fail with a generic error.
+      const network = await api.getNetworkId();
 
-      setWallet(browserWallet);
+      const client = Client.make(chains[config.cardanoNetwork])
+        .withBlockfrost({
+          baseUrl: config.network.blockfrostUrl,
+          projectId: config.blockfrostProjectId || undefined,
+        })
+        .withCip30(api);
+
+      // client.address() also validates the network and throws on a mismatch;
+      // derive it best-effort so a mismatched wallet still connects and shows
+      // the guidance banner instead of a generic failure. Submission is blocked
+      // separately while networkId != expected.
+      let walletAddress = '';
+      try {
+        walletAddress = Address.toBech32(await client.address());
+      } catch (addressError) {
+        console.warn('Could not derive wallet address (likely network mismatch):', addressError);
+      }
+
+      console.log('Wallet connected:', walletAddress || '(address unavailable — network mismatch)');
+
+      setWallet({ api, client });
       setAddress(walletAddress);
       setNetworkId(network);
       setWalletName(walletKey);

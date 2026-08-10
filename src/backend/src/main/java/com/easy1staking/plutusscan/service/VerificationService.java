@@ -10,7 +10,9 @@ import com.easy1staking.plutusscan.service.plutusjson.PlutusJsonParserFactory;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -29,6 +31,9 @@ public class VerificationService {
     private final VerificationConfig.CompilerServices compilerServices;
     private final PlutusJsonParserFactory parserFactory;
     private final ScriptService scriptService;
+
+    @Value("${verification.max-retries:3}")
+    private int maxRetries;
 
     @PostConstruct
     public void init() {
@@ -129,12 +134,32 @@ public class VerificationService {
             log.error("Verification failed for {} @ {}",
                 request.getSourceUrl(), request.getCommitHash(), e);
 
-            request.setRetryCount(request.getRetryCount() + 1);
-            request.setErrorMessage(e.getMessage());
-            request.setStatus(VerificationStatus.FAILED);
-            verificationRequestRepository.save(request);
-
+            // Rethrow so this transaction rolls back any partial writes.
+            // Saving FAILED here would be rolled back with it — the caller
+            // must record the failure via markFailed() in a new transaction.
             throw new RuntimeException("Verification failed", e);
         }
+    }
+
+    /**
+     * Record a verification failure in its own transaction.
+     *
+     * Must be called after processVerification() has thrown (and rolled
+     * back). Increments the retry count and keeps the request PENDING until
+     * max retries are exhausted, then marks it FAILED for good.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markFailed(Long requestId, String errorMessage) {
+        verificationRequestRepository.findById(requestId).ifPresent(request -> {
+            int retryCount = request.getRetryCount() + 1;
+            request.setRetryCount(retryCount);
+            request.setErrorMessage(errorMessage);
+            request.setStatus(retryCount >= maxRetries
+                ? VerificationStatus.FAILED
+                : VerificationStatus.PENDING);
+            verificationRequestRepository.save(request);
+            log.info("Recorded failure for request id={} (retry {}/{}, status={})",
+                requestId, retryCount, maxRetries, request.getStatus());
+        });
     }
 }

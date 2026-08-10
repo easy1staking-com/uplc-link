@@ -27,5 +27,11 @@ public enum VerificationStatus {
     /**
      * Insufficient parameters provided to calculate final hashes
      */
-    INSUFFICIENT_PARAMS
+    INSUFFICIENT_PARAMS,
+
+    /**
+     * Discarded at ingest: on-chain metadata parsed but failed validation
+     * (bad URL / commit hash / compiler version / source path). Never retried.
+     */
+    REJECTED
 }

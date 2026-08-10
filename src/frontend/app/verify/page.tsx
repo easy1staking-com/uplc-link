@@ -6,6 +6,8 @@ import Link from "next/link";
 import { backendClient } from "@/lib/api/backend-client";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 import { encodeParameterValue } from "@/lib/cardano/cbor-encoding";
+import { applyParamsAndHash } from "@/lib/cardano/script-hash";
+import { toAikenReleaseTag } from "@/lib/aiken-version";
 import type { VerificationResponseDto } from "@/lib/types/registry";
 
 interface ParameterSchema {
@@ -173,11 +175,12 @@ function VerifyPageContent() {
         setCommitHash(data.commitHash);
         setSourcePath(data.sourcePath || "");
 
-        // Set compiler version (strip 'v' prefix if needed for matching)
-        const version = data.compilerVersion.startsWith('v')
-          ? data.compilerVersion
-          : `v${data.compilerVersion}`;
-        setAikenVersion(version);
+        // Normalize stored compiler version (may carry "+<build>" metadata,
+        // e.g. "v1.1.21+42babe5") to the release tag the dropdown lists
+        const version = toAikenReleaseTag(data.compilerVersion);
+        if (version) {
+          setAikenVersion(version);
+        }
 
         // Build expected hashes from stored scripts (deduplicated)
         // Note: Aiken alpha and non-alpha versions group scripts differently by purpose,
@@ -189,8 +192,18 @@ function VerifyPageContent() {
         )];
         setExpectedHashes(hashes.join('\n'));
 
-        // Trigger auto-verification after form is populated
-        setShouldAutoVerify(true);
+        // Only auto-verify when the stored compiler version normalized cleanly.
+        // Otherwise aikenVersion still holds the default (latest) release, and
+        // auto-verifying against the wrong compiler would show a spurious hash
+        // mismatch with no explanation — surface the reason and let the user pick.
+        if (version) {
+          setShouldAutoVerify(true);
+        } else {
+          setDeepLinkError(
+            `Stored compiler version "${data.compilerVersion}" is not a recognized Aiken release; ` +
+            `select the version manually before verifying.`
+          );
+        }
       } catch (error) {
         console.error("Failed to fetch verification data:", error);
         setDeepLinkError(
@@ -239,11 +252,8 @@ function VerifyPageContent() {
     if (typeof window === "undefined") return;
     if (!verificationResult?.results) return;
 
-    const calculateHashes = async () => {
+    const calculateHashes = () => {
       try {
-        const { applyParamsToScript } = await import("@meshsdk/core-csl");
-        const { resolveScriptHash } = await import("@meshsdk/core");
-
         const newCalculatedHashes: Record<string, string> = {};
 
         for (const result of verificationResult.results) {
@@ -290,8 +300,7 @@ function VerifyPageContent() {
 
               if (resolvedParams.some(p => !p)) continue;
 
-              const scriptCbor = applyParamsToScript(result.compiledCode, resolvedParams, "CBOR");
-              const hash = resolveScriptHash(scriptCbor, result.plutusVersion);
+              const { hash } = applyParamsAndHash(result.compiledCode, resolvedParams, result.plutusVersion);
 
               if (newCalculatedHashes[result.hash] !== hash) {
                 newCalculatedHashes[result.hash] = hash;
@@ -305,7 +314,7 @@ function VerifyPageContent() {
 
         setCalculatedHashes(newCalculatedHashes);
       } catch (error) {
-        console.error("Failed to load MeshSDK:", error);
+        console.error("Failed to calculate hashes:", error);
       }
     };
 
@@ -390,7 +399,14 @@ function VerifyPageContent() {
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        // The route returns a descriptive { error } body for validation
+        // failures (bad commit hash, URL, source path, version); surface it
+        // instead of the opaque status line.
+        const serverError = await response
+          .json()
+          .then((body) => body?.error as string | undefined)
+          .catch(() => undefined);
+        throw new Error(serverError || `Server returned ${response.status}: ${response.statusText}`);
       }
 
       const result: VerificationResult = await response.json();
