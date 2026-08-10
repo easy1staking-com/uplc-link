@@ -24,6 +24,7 @@ public class ScriptListResponseDto {
     private String sourcePath;
     private String compilerType;
     private String compilerVersion;
+    private String env;
     private String status;
     private List<ScriptResponseDto> scripts;
 
@@ -45,6 +46,7 @@ public class ScriptListResponseDto {
             .sourcePath(request.getSourcePath())
             .compilerType(request.getCompilerType().name())
             .compilerVersion(request.getCompilerVersion())
+            .env(request.getEnv())
             .status(request.getStatus().name())
             .scripts(entities.stream()
                 .map(ScriptResponseDto::fromEntity)
@@ -60,6 +62,7 @@ public class ScriptListResponseDto {
             .sourcePath(entity.getSourcePath())
             .compilerType(entity.getCompilerType() != null ? entity.getCompilerType().name() : null)
             .compilerVersion(entity.getCompilerVersion())
+            .env(entity.getEnv())
             .status(entity.getStatus() != null ? entity.getStatus().name() : null)
             .scripts(entity.getScripts() != null ? entity.getScripts().stream()
                 .map(ScriptResponseDto::fromEntity)

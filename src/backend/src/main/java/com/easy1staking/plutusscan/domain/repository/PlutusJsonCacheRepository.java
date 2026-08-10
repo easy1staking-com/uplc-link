@@ -20,13 +20,17 @@ public interface PlutusJsonCacheRepository extends JpaRepository<PlutusJsonCache
      * @param sourceUrl VCS source URL (supports any Git hosting platform)
      * @param commitHash Git commit hash (SHA-1 or SHA-256)
      * @param compilerVersion Compiler version
+     * @param sourcePath Path within the repository ("" for root)
+     * @param env Aiken --env module ("" when built without the flag)
      * @return Optional cache entity
      */
-    Optional<PlutusJsonCacheEntity> findByCompilerTypeAndSourceUrlAndCommitHashAndCompilerVersion(
+    Optional<PlutusJsonCacheEntity> findByCompilerTypeAndSourceUrlAndCommitHashAndCompilerVersionAndSourcePathAndEnv(
         CompilerType compilerType,
         String sourceUrl,
         String commitHash,
-        String compilerVersion);
+        String compilerVersion,
+        String sourcePath,
+        String env);
 
     /**
      * Delete cache entries older than the specified cutoff date

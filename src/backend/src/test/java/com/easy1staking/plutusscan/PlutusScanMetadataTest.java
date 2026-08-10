@@ -13,10 +13,12 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.easy1staking.plutusscan.model.CompilerType;
 import com.easy1staking.plutusscan.model.PlutusScanRequest;
 import com.easy1staking.plutusscan.model.PlutusScanRequestParser;
+import com.easy1staking.plutusscan.util.RequestValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,9 @@ public class PlutusScanMetadataTest extends EnvVarInjectionTest {
 
     private final QuickTxBuilder quickTxBuilder = new QuickTxBuilder(bfBackendService);
 
+    // Submits a real mainnet tx — only runs when wallet secrets are present
     @Test
+    @EnabledIfEnvironmentVariable(named = "WALLET_MNEMONIC", matches = ".+")
     public void test() {
 
         var plutusScanTxMetadata = PlutusScanRequest.builder()
@@ -85,23 +89,14 @@ public class PlutusScanMetadataTest extends EnvVarInjectionTest {
 
         log.info("{}", list);
 
-        var actual = plutusScanRequestParser.parse(reversed).get();
-
-        log.info("{}", actual);
-
-        var expected = PlutusScanRequest.builder()
-                .compilerType(CompilerType.AIKEN)
-                .sourceUrl("http://github.com/easy1staking-com/cardano-recurring-payment")
-                .commitHash("35f1a0d51c8663782ab052f869d5c82b756e8615")
-                .sourcePath("")
-                .compilerVersion("v1.1.3")
-                .parameters(Map.of("e513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b", List.of("D8799F58208C198E942F1F7A60E704AA1651333B45BCCD51653259204E4DAC38B559844DD800FF".toLowerCase()),
-                        "39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e", List.of("66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0")))
-                .build();
-
-        Assertions.assertEquals(expected, actual);
-
-
+        // Legacy prototype payload (org, repo, commit, path, version, map)
+        // happens to carry 6 fields, so it parses structurally under the
+        // redefined CIP-171 schema — but the misaligned fields are garbage
+        // ("easy1staking-com" as source URL) and semantic validation rejects
+        // it at the ingest boundary.
+        var parsed = plutusScanRequestParser.parse(reversed);
+        Assertions.assertTrue(parsed.isPresent());
+        Assertions.assertTrue(RequestValidator.validate(parsed.get()).isPresent());
     }
 
 }

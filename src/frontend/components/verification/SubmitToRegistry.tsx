@@ -77,6 +77,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
           commitHash: verificationData.commitHash,
           sourcePath: verificationData.sourcePath,
           compilerVersion: verificationData.aikenVersion,
+          env: verificationData.env,
           parameters,
         };
 
@@ -111,6 +112,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
         commitHash: verificationData.commitHash,
         sourcePath: verificationData.sourcePath,
         compilerVersion: verificationData.aikenVersion,
+        env: verificationData.env,
         parameters,
       };
 
@@ -213,6 +215,13 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
                         <h3 className="text-sm font-medium text-gray-400 mb-1">Compiler</h3>
                         <p className="text-sm">Aiken {verificationData.aikenVersion}</p>
                       </div>
+
+                      {verificationData.env && (
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-400 mb-1">Environment</h3>
+                          <p className="text-sm font-mono">{verificationData.env}</p>
+                        </div>
+                      )}
 
                       <div>
                         <h3 className="text-sm font-medium text-gray-400 mb-1">Validators</h3>

@@ -17,6 +17,8 @@ public record PlutusScanRequest(CompilerType compilerType,
                                 String sourcePath,
                                 // Optional<>
                                 String compilerVersion,
+                                // Optional<> - aiken --env module; null/empty = built without the flag
+                                String env,
                                 Map<String, List<String>> parameters) {
 
     public PlutusData toPlutusData() {
@@ -35,6 +37,7 @@ public record PlutusScanRequest(CompilerType compilerType,
                 BytesPlutusData.of(HexUtil.decodeHexString(commitHash)),
                 BytesPlutusData.of(sourcePath != null ? sourcePath : ""),
                 BytesPlutusData.of(compilerVersion != null ? compilerVersion : ""),
+                BytesPlutusData.of(env != null ? env : ""),
                 scriptHashToParametersMap
         );
     }

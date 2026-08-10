@@ -26,6 +26,7 @@ export interface VerificationMetadata {
   commitHash: string;
   sourcePath?: string;
   compilerVersion: string;
+  env?: string; // Aiken --env module name; empty/absent = no --env flag
   parameters: Record<string, string[]>; // scriptHash -> [CBOR-encoded params]
 }
 
@@ -42,6 +43,7 @@ function utf8ToHex(value: string): string {
  *   BytesData(commitHashHex),        // raw hex bytes
  *   BytesData(sourcePath || ""),     // optional path
  *   BytesData(compilerVersion),      // e.g., "v1.1.3"
+ *   BytesData(env || ""),            // aiken --env module; empty = flag not passed
  *   MapData({                        // scriptHash -> [params]
  *     scriptHash1: [param1, param2],
  *     scriptHash2: [param1]
@@ -49,7 +51,7 @@ function utf8ToHex(value: string): string {
  * ])
  */
 export function encodeVerificationMetadata(data: VerificationMetadata): string {
-  const { sourceUrl, commitHash, sourcePath, compilerVersion, parameters } = data;
+  const { sourceUrl, commitHash, sourcePath, compilerVersion, env, parameters } = data;
 
   // Sort entries by script hash (lexicographically) for canonical CBOR ordering
   const sortedEntries = Object.entries(parameters).sort(([a], [b]) =>
@@ -68,6 +70,7 @@ export function encodeVerificationMetadata(data: VerificationMetadata): string {
     Data.bytearray(commitHash), // Already hex string
     Data.bytearray(utf8ToHex(sourcePath || '')),
     Data.bytearray(utf8ToHex(compilerVersion)),
+    Data.bytearray(utf8ToHex(env || '')),
     paramsMap,
   ]);
 

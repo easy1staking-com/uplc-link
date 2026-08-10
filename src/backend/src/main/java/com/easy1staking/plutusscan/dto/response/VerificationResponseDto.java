@@ -24,6 +24,7 @@ public class VerificationResponseDto {
     private String sourcePath;
     private String compilerType;
     private String compilerVersion;
+    private String env;
     private String status;
     private String errorMessage;
     private List<ScriptResponseDto> scripts;
@@ -38,6 +39,7 @@ public class VerificationResponseDto {
             .sourcePath(entity.getSourcePath())
             .compilerType(entity.getCompilerType().name())
             .compilerVersion(entity.getCompilerVersion())
+            .env(entity.getEnv())
             .status(entity.getStatus().name())
             .errorMessage(entity.getErrorMessage())
             .scripts(entity.getScripts().stream()

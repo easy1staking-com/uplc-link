@@ -16,7 +16,7 @@ import java.util.Map;
 @Table(name = "plutus_json_cache",
        uniqueConstraints = @UniqueConstraint(
            name = "uk_plutus_json_cache_key",
-           columnNames = {"compiler_type", "source_url", "commit_hash", "compiler_version"}))
+           columnNames = {"compiler_type", "source_url", "commit_hash", "compiler_version", "source_path", "env"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -41,6 +41,16 @@ public class PlutusJsonCacheEntity {
 
     @Column(name = "compiler_version", nullable = false)
     private String compilerVersion;
+
+    // "" for repository root — NOT NULL so the unique constraint covers it
+    @Column(name = "source_path", nullable = false, length = 1000)
+    @Builder.Default
+    private String sourcePath = "";
+
+    // "" when built without aiken --env — NOT NULL so the unique constraint covers it
+    @Column(name = "env", nullable = false, length = 64)
+    @Builder.Default
+    private String env = "";
 
     // Cached content stored as JSONB for efficient querying
     @JdbcTypeCode(SqlTypes.JSON)

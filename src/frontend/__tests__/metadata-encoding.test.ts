@@ -14,12 +14,13 @@ import { encodeVerificationMetadata, chunkMetadata } from '../lib/cardano/metada
  * commitHash: "35f1a0d51c8663782ab052f869d5c82b756e8615"
  * sourcePath: ""
  * compilerVersion: "v1.1.3"
+ * env: "" (6-field CIP-171 layout: empty bytes = no --env flag)
  * parameters:
  *   - "e513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b" -> ["d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ff"]
  *   - "39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e" -> ["66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0"]
  *
  * Expected CBOR hex output (before chunking):
- * d8799f583c687474703a2f2f6769746875622e636f6d2f65617379317374616b696e672d636f6d2f63617264616e6f2d726563757272696e672d7061796d656e745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e33a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f581c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f5827d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff
+ * d8799f583c687474703a2f2f6769746875622e636f6d2f65617379317374616b696e672d636f6d2f63617264616e6f2d726563757272696e672d7061796d656e745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e3340a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f581c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f5827d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff
  */
 function testMetadataEncoding() {
   const testData = {
@@ -27,6 +28,7 @@ function testMetadataEncoding() {
     commitHash: "35f1a0d51c8663782ab052f869d5c82b756e8615",
     sourcePath: "",
     compilerVersion: "v1.1.3",
+    env: "",
     parameters: {
       "e513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b": [
         "d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ff"
@@ -37,15 +39,15 @@ function testMetadataEncoding() {
     }
   };
 
-  const expectedHex = "d8799f583c687474703a2f2f6769746875622e636f6d2f65617379317374616b696e672d636f6d2f63617264616e6f2d726563757272696e672d7061796d656e745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e33a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f581c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f5827d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff";
+  const expectedHex = "d8799f583c687474703a2f2f6769746875622e636f6d2f65617379317374616b696e672d636f6d2f63617264616e6f2d726563757272696e672d7061796d656e745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e3340a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f581c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f5827d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff";
 
   // Expected chunks (64 bytes = 128 hex chars each, except last)
   // From Java test output split by newlines
   const expectedChunks = [
     "d8799f583c687474703a2f2f6769746875622e636f6d2f65617379317374616b696e672d636f6d2f63617264616e6f2d726563757272696e672d7061796d656e",
-    "745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e33a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f581c",
-    "66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f5827d879",
-    "9f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff"
+    "745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e3340a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f58",
+    "1c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f5827d8",
+    "799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff"
   ];
 
   console.log("=".repeat(80));
@@ -150,10 +152,51 @@ function testMetadataEncoding() {
   }
 }
 
+/**
+ * Same fixture but with env: "preview" — the env bytestring (index 4) must be
+ * 47 70726576696577 ("preview" as 7 UTF-8 bytes) between compilerVersion and
+ * the parameters map.
+ */
+function testMetadataEncodingWithEnv() {
+  const testData = {
+    sourceUrl: "http://github.com/easy1staking-com/cardano-recurring-payment",
+    commitHash: "35f1a0d51c8663782ab052f869d5c82b756e8615",
+    sourcePath: "",
+    compilerVersion: "v1.1.3",
+    env: "preview",
+    parameters: {
+      "e513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b": [
+        "d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ff"
+      ],
+      "39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e": [
+        "66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0"
+      ]
+    }
+  };
+
+  const expectedHex = "d8799f583c687474703a2f2f6769746875622e636f6d2f65617379317374616b696e672d636f6d2f63617264616e6f2d726563757272696e672d7061796d656e745435f1a0d51c8663782ab052f869d5c82b756e8615404676312e312e334770726576696577a2581c39b875da204d886d1ea0c4ae193281b819236efa36ab0b711bb3977e9f581c66d403abc1d6f1206b74c64204766e46601b88747575f6a0a02142a0ff581ce513498211e006e0fa7679e7c51ef09fd0b53904b7bfa5d9fb3dd01b9f5827d8799f58208c198e942f1f7a60e704aa1651333b45bccd51653259204e4dac38b559844dd800ffffff";
+
+  const actualHex = encodeVerificationMetadata(testData);
+  const match = actualHex.toLowerCase() === expectedHex.toLowerCase();
+
+  console.log();
+  console.log("-".repeat(80));
+  console.log("Metadata Encoding Test (env = \"preview\")");
+  console.log("-".repeat(80));
+  if (match) {
+    console.log("✅ SUCCESS: env-carrying serialization matches expected layout");
+  } else {
+    console.log("❌ FAILURE: env-carrying serialization mismatch");
+    console.log("  Expected:", expectedHex);
+    console.log("  Actual:  ", actualHex);
+  }
+  return match;
+}
+
 // Run the test
 if (require.main === module) {
-  const success = testMetadataEncoding();
+  const success = testMetadataEncoding() && testMetadataEncodingWithEnv();
   process.exit(success ? 0 : 1);
 }
 
-export { testMetadataEncoding };
+export { testMetadataEncoding, testMetadataEncodingWithEnv };

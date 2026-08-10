@@ -15,6 +15,10 @@ const AIKEN_ENV = {
 };
 
 const COMMIT_HASH_PATTERN = /^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$/; // SHA-1 or SHA-256
+// Aiken env module name (snake_case module identifier); also keeps the value
+// from ever being interpretable as a CLI option
+const ENV_PATTERN = /^[a-z][a-z0-9_]*$/;
+const MAX_ENV_LENGTH = 64;
 const MAX_PLUTUS_JSON_BYTES = 10 * 1024 * 1024;
 
 // This endpoint clones and builds arbitrary repos; bound each subprocess so a
@@ -49,6 +53,7 @@ interface VerifyRequest {
   commitHash: string;
   aikenVersion: string;
   sourcePath?: string;
+  env?: string; // aiken --env module; empty/absent = build without the flag
   // Note: expectedHashes and validatorParameters are no longer used
   // All comparison and parameterization happens client-side
 }
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: VerifyRequest = await request.json();
-    const { repoUrl, commitHash, aikenVersion, sourcePath } = body;
+    const { repoUrl, commitHash, aikenVersion, sourcePath, env } = body;
 
     // Validate inputs
     if (!repoUrl || !commitHash || !aikenVersion) {
@@ -111,6 +116,13 @@ export async function POST(request: NextRequest) {
     if (sourcePath && !isValidSourcePath(sourcePath)) {
       return NextResponse.json(
         { success: false, error: "Invalid source path" },
+        { status: 400 }
+      );
+    }
+
+    if (env && (env.length > MAX_ENV_LENGTH || !ENV_PATTERN.test(env))) {
+      return NextResponse.json(
+        { success: false, error: "Invalid environment (lowercase letters, digits and underscores; must start with a letter)" },
         { status: 400 }
       );
     }
@@ -156,10 +168,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Build the contract with installed Aiken version
-    console.log(`Building contract with Aiken ${releaseTag} in ${workDir}...`);
+    const buildArgs = env ? ["build", "--env", env] : ["build"];
+    console.log(`Building contract with Aiken ${releaseTag} in ${workDir}${env ? ` (env: ${env})` : ""}...`);
     let buildOutput: string;
     try {
-      const { stdout, stderr } = await execFileAsync("aiken", ["build"], {
+      const { stdout, stderr } = await execFileAsync("aiken", buildArgs, {
         cwd: workDir,
         env: AIKEN_ENV,
         ...EXEC_LIMITS,

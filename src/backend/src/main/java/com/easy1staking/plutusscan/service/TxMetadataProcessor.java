@@ -137,9 +137,11 @@ public class TxMetadataProcessor {
 
     /**
      * Find an existing request with identical content: same source, commit,
-     * compiler type/version, source path AND parameters. Same repo+commit with
-     * different parameters is a legitimate new submission (different final
-     * hashes), so parameters are part of the identity.
+     * compiler type/version, source path, env AND parameters. Same repo+commit
+     * with different parameters is a legitimate new submission (different final
+     * hashes), so parameters are part of the identity — and env is too, since
+     * aiken --env bakes different constants into the bytecode (null ≡ empty,
+     * plain string comparison, no "default" special-casing).
      */
     private Optional<VerificationRequestEntity> findContentDuplicate(PlutusScanRequest request) {
         List<VerificationRequestEntity> candidates = verificationRequestRepository
@@ -150,6 +152,7 @@ public class TxMetadataProcessor {
                 .filter(c -> c.getCompilerType() == request.compilerType())
                 .filter(c -> Objects.equals(c.getCompilerVersion(), request.compilerVersion()))
                 .filter(c -> Objects.equals(emptyToNull(c.getSourcePath()), emptyToNull(request.sourcePath())))
+                .filter(c -> Objects.equals(emptyToNull(c.getEnv()), emptyToNull(request.env())))
                 .filter(c -> Objects.equals(c.getParametersJson(), request.parameters()))
                 .findFirst();
     }
@@ -168,6 +171,7 @@ public class TxMetadataProcessor {
                 .compilerType(request.compilerType())
                 .compilerVersion(truncate(request.compilerVersion(), 255))
                 .sourcePath(truncate(request.sourcePath(), RequestValidator.MAX_SOURCE_PATH_LENGTH))
+                .env(truncate(request.env(), RequestValidator.MAX_ENV_LENGTH))
                 .parametersJson(request.parameters())
                 .status(status)
                 .errorMessage(errorMessage)

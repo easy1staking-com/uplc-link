@@ -37,7 +37,7 @@ public class AikenCompilerService implements CompilerService {
 
     @Override
     public String compile(String sourceUrl, String commitHash,
-                         String compilerVersion, String sourcePath)
+                         String compilerVersion, String sourcePath, String env)
             throws CompilationException {
 
         Path buildDir = null;
@@ -63,6 +63,9 @@ public class AikenCompilerService implements CompilerService {
             // Defense in depth: entity values may predate ingest validation
             if (!SourceUrlParser.isValidCommitHash(commitHash)) {
                 throw new CompilationException("Invalid commit hash: " + commitHash);
+            }
+            if (env != null && !env.isEmpty() && !env.matches("[a-z][a-z0-9_]{0,63}")) {
+                throw new CompilationException("Invalid environment: " + env);
             }
 
             // Fetch just the requested commit (bounds clone cost for huge
@@ -110,10 +113,15 @@ public class AikenCompilerService implements CompilerService {
                     buildTimeoutSeconds);
             }
 
-            // Build with Aiken
-            log.info("Building Aiken project in: {}", workDir);
+            // Build with Aiken (--env changes the compiled bytecode, so it is
+            // part of the request identity and the cache key)
+            var buildCommand = env != null && !env.isEmpty()
+                    ? List.of("aiken", "build", "--env", env)
+                    : List.of("aiken", "build");
+            log.info("Building Aiken project in: {}{}", workDir,
+                    env != null && !env.isEmpty() ? " (env: " + env + ")" : "");
             var buildResult = shellExecutor.execute(
-                List.of("aiken", "build"),
+                buildCommand,
                 workDir,
                 buildTimeoutSeconds);
 
