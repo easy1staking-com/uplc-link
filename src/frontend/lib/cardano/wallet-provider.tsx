@@ -39,6 +39,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // Enable via raw CIP-30, then wrap in an Evolution signing client
       const api = await injected.enable();
+
+      // Read the network id from the raw CIP-30 handle FIRST. The Evolution
+      // client validates the wallet's network against the configured chain and
+      // throws on a mismatch, so we must capture networkId before touching the
+      // client — otherwise the "wrong network" UI (which keys off networkId)
+      // would never render and connect would fail with a generic error.
+      const network = await api.getNetworkId();
+
       const client = Client.make(chains[config.cardanoNetwork])
         .withBlockfrost({
           baseUrl: config.network.blockfrostUrl,
@@ -46,10 +54,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         })
         .withCip30(api);
 
-      const walletAddress = Address.toBech32(await client.address());
-      const network = await api.getNetworkId();
+      // client.address() also validates the network and throws on a mismatch;
+      // derive it best-effort so a mismatched wallet still connects and shows
+      // the guidance banner instead of a generic failure. Submission is blocked
+      // separately while networkId != expected.
+      let walletAddress = '';
+      try {
+        walletAddress = Address.toBech32(await client.address());
+      } catch (addressError) {
+        console.warn('Could not derive wallet address (likely network mismatch):', addressError);
+      }
 
-      console.log('Wallet connected:', walletAddress);
+      console.log('Wallet connected:', walletAddress || '(address unavailable — network mismatch)');
 
       setWallet({ api, client });
       setAddress(walletAddress);

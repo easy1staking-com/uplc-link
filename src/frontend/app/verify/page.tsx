@@ -192,8 +192,18 @@ function VerifyPageContent() {
         )];
         setExpectedHashes(hashes.join('\n'));
 
-        // Trigger auto-verification after form is populated
-        setShouldAutoVerify(true);
+        // Only auto-verify when the stored compiler version normalized cleanly.
+        // Otherwise aikenVersion still holds the default (latest) release, and
+        // auto-verifying against the wrong compiler would show a spurious hash
+        // mismatch with no explanation — surface the reason and let the user pick.
+        if (version) {
+          setShouldAutoVerify(true);
+        } else {
+          setDeepLinkError(
+            `Stored compiler version "${data.compilerVersion}" is not a recognized Aiken release; ` +
+            `select the version manually before verifying.`
+          );
+        }
       } catch (error) {
         console.error("Failed to fetch verification data:", error);
         setDeepLinkError(
@@ -389,7 +399,14 @@ function VerifyPageContent() {
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        // The route returns a descriptive { error } body for validation
+        // failures (bad commit hash, URL, source path, version); surface it
+        // instead of the opaque status line.
+        const serverError = await response
+          .json()
+          .then((body) => body?.error as string | undefined)
+          .catch(() => undefined);
+        throw new Error(serverError || `Server returned ${response.status}: ${response.statusText}`);
       }
 
       const result: VerificationResult = await response.json();

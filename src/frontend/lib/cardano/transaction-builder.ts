@@ -8,6 +8,7 @@ import * as Bytes from '@evolution-sdk/evolution/Bytes';
 import type { SignBuilder } from '@evolution-sdk/evolution/sdk/builders/SignBuilder';
 import { encodeVerificationMetadata, chunkMetadata, type VerificationMetadata } from './metadata-encoder';
 import type { ConnectedWallet } from '../types/wallet';
+import { config } from '../config';
 
 export const REGISTRY_METADATA_LABEL = 1984n;
 
@@ -27,6 +28,16 @@ export async function buildRegistrySubmissionTx(
   metadata: VerificationMetadata
 ): Promise<SignBuilder> {
   const { client } = wallet;
+
+  // Building fetches protocol params from Blockfrost and submission routes
+  // through it too; without a project id every request 403s at build time with
+  // a cryptic provider error. Fail early with an actionable message instead.
+  if (!config.blockfrostProjectId) {
+    throw new Error(
+      'Blockfrost project id is not configured (set NEXT_PUBLIC_BLOCKFROST_PROJECT_ID). ' +
+      'Registry submission needs it to fetch protocol parameters and submit the transaction.'
+    );
+  }
 
   // Get sender address
   const address = await client.address();

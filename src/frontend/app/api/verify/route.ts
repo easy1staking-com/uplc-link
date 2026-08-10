@@ -226,21 +226,29 @@ async function extractBuildHashes(repoPath: string, repoRoot: string): Promise<B
   // Read plutus.json file which contains the build output
   const plutusJsonPath = path.join(repoPath, "plutus.json");
 
+  // These guards mean the build artifact was refused, not that the project has
+  // no validators — surface them as real errors (caller returns a 500 with the
+  // message) rather than letting the catch below collapse them into an empty,
+  // success-looking result that renders as a silent hash mismatch.
+  let realPlutusJson: string;
   try {
-    // Symlink-safe: the file must resolve inside the cloned repo (a hostile
-    // repo could ship plutus.json as a symlink to an arbitrary server file)
-    const realPlutusJson = await fs.realpath(plutusJsonPath);
-    const realRepoRoot = await fs.realpath(repoRoot);
-    if (!realPlutusJson.startsWith(realRepoRoot + path.sep)) {
-      throw new Error("plutus.json resolves outside the repository");
-    }
+    realPlutusJson = await fs.realpath(plutusJsonPath);
+  } catch {
+    throw new Error("plutus.json not found after build (the build may have failed)");
+  }
+  const realRepoRoot = await fs.realpath(repoRoot);
+  // Symlink-safe: the file must resolve inside the cloned repo (a hostile
+  // repo could ship plutus.json as a symlink to an arbitrary server file)
+  if (!realPlutusJson.startsWith(realRepoRoot + path.sep)) {
+    throw new Error("plutus.json resolves outside the repository");
+  }
+  const stat = await fs.stat(realPlutusJson);
+  if (stat.size > MAX_PLUTUS_JSON_BYTES) {
+    throw new Error(`plutus.json too large (${stat.size} bytes)`);
+  }
+  const plutusJson = await fs.readFile(realPlutusJson, "utf-8");
 
-    const stat = await fs.stat(realPlutusJson);
-    if (stat.size > MAX_PLUTUS_JSON_BYTES) {
-      throw new Error(`plutus.json too large (${stat.size} bytes)`);
-    }
-
-    const plutusJson = await fs.readFile(realPlutusJson, "utf-8");
+  try {
     const data = JSON.parse(plutusJson);
 
     // Read plutusVersion from preamble (default to V3 if not found)
@@ -325,7 +333,8 @@ async function extractBuildHashes(repoPath: string, repoRoot: string): Promise<B
 
     return results;
   } catch (error) {
-    console.error("Failed to read plutus.json:", error);
+    // Malformed JSON or unexpected shape — treat as "no extractable validators"
+    console.error("Failed to parse plutus.json:", error);
     return [];
   }
 }
