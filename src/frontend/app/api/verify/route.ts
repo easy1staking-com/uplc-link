@@ -17,6 +17,12 @@ const AIKEN_ENV = {
 const COMMIT_HASH_PATTERN = /^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$/; // SHA-1 or SHA-256
 const MAX_PLUTUS_JSON_BYTES = 10 * 1024 * 1024;
 
+// This endpoint clones and builds arbitrary repos; bound each subprocess so a
+// hanging git server or a runaway build can't tie up the request indefinitely.
+const EXEC_TIMEOUT_MS = 300_000;
+const MAX_EXEC_BUFFER = 10 * 1024 * 1024;
+const EXEC_LIMITS = { timeout: EXEC_TIMEOUT_MS, maxBuffer: MAX_EXEC_BUFFER } as const;
+
 function isValidRepoUrl(repoUrl: string): boolean {
   let url: URL;
   try {
@@ -117,8 +123,8 @@ export async function POST(request: NextRequest) {
     console.log(`Cloning ${repoUrl} at commit ${commitHash}...`);
     const repoDirPath = path.join(tempDir, "repo");
     try {
-      await execFileAsync("git", ["clone", "--", repoUrl, repoDirPath]);
-      await execFileAsync("git", ["checkout", commitHash], { cwd: repoDirPath });
+      await execFileAsync("git", ["clone", "--", repoUrl, repoDirPath], EXEC_LIMITS);
+      await execFileAsync("git", ["checkout", commitHash], { cwd: repoDirPath, ...EXEC_LIMITS });
     } catch (error) {
       throw new Error(`Failed to clone repository: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -144,7 +150,7 @@ export async function POST(request: NextRequest) {
     // Install specific Aiken version
     console.log(`Installing Aiken ${releaseTag}...`);
     try {
-      await execFileAsync("aikup", ["install", releaseTag], { env: AIKEN_ENV });
+      await execFileAsync("aikup", ["install", releaseTag], { env: AIKEN_ENV, ...EXEC_LIMITS });
     } catch (error) {
       throw new Error(`Failed to install Aiken version ${releaseTag}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -156,6 +162,7 @@ export async function POST(request: NextRequest) {
       const { stdout, stderr } = await execFileAsync("aiken", ["build"], {
         cwd: workDir,
         env: AIKEN_ENV,
+        ...EXEC_LIMITS,
       });
       buildOutput = stdout + stderr;
       console.log(`Build output:\n${buildOutput}`);

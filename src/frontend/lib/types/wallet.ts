@@ -5,7 +5,7 @@
 import type { Client } from '@evolution-sdk/evolution';
 import type * as Wallet from '@evolution-sdk/evolution/sdk/wallet/Wallet';
 
-/** Full signing client returned by Client.make(chain).withKoios(...).withCip30(api) */
+/** Full signing client returned by Client.make(chain).withBlockfrost(...).withCip30(api) */
 export type SigningClient = Client.SigningClient;
 
 /**

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.List;
@@ -17,6 +18,9 @@ import java.util.concurrent.TimeUnit;
 @Component
 @Slf4j
 public class ShellCommandExecutor {
+
+    /** Cap on retained stdout/stderr so a noisy or hostile child can't exhaust the heap. */
+    private static final int MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 
     /**
      * Execute a command in the specified working directory.
@@ -48,26 +52,17 @@ public class ShellCommandExecutor {
 
         Process process = pb.start();
 
-        StringBuilder stdout = new StringBuilder();
-        StringBuilder stderr = new StringBuilder();
-
-        // Read stdout
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                stdout.append(line).append("\n");
-            }
-        }
-
-        // Read stderr
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getErrorStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                stderr.append(line).append("\n");
-            }
-        }
+        // Drain both pipes on separate threads so a child that fills one pipe
+        // buffer while we read the other can't deadlock, and so the timeout
+        // below actually arms instead of us blocking indefinitely in readLine().
+        StreamGobbler stdout = new StreamGobbler(process.getInputStream());
+        StreamGobbler stderr = new StreamGobbler(process.getErrorStream());
+        Thread stdoutThread = new Thread(stdout, "proc-stdout");
+        Thread stderrThread = new Thread(stderr, "proc-stderr");
+        stdoutThread.setDaemon(true);
+        stderrThread.setDaemon(true);
+        stdoutThread.start();
+        stderrThread.start();
 
         boolean finished;
         try {
@@ -80,21 +75,74 @@ public class ShellCommandExecutor {
 
         if (!finished) {
             process.destroyForcibly();
+            // destroy closes the pipes, letting the gobblers reach EOF and exit
+            joinQuietly(stdoutThread);
+            joinQuietly(stderrThread);
             throw new IOException(String.format(
                 "Command timed out after %d seconds: %s", timeoutSeconds, command));
         }
+
+        // Process has exited; wait for the gobblers to finish reading buffered output
+        joinQuietly(stdoutThread);
+        joinQuietly(stderrThread);
 
         int exitCode = process.exitValue();
 
         log.debug("Command completed with exit code: {}", exitCode);
 
         if (exitCode != 0) {
-            log.warn("Command failed with exit code {}. Stderr: {}", exitCode, stderr.toString());
+            log.warn("Command failed with exit code {}. Stderr: {}", exitCode, stderr.getOutput());
             throw new IOException(String.format(
                 "Command failed with exit code %d: %s\nStderr: %s",
-                exitCode, command, stderr.toString()));
+                exitCode, command, stderr.getOutput()));
         }
 
-        return new ProcessResult(exitCode, stdout.toString(), stderr.toString());
+        return new ProcessResult(exitCode, stdout.getOutput(), stderr.getOutput());
+    }
+
+    private static void joinQuietly(Thread thread) {
+        try {
+            thread.join(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Reads a process stream to EOF on its own thread. Always drains to the end
+     * (so the child never blocks on a full pipe) but stops retaining bytes once
+     * {@link #MAX_OUTPUT_BYTES} is reached, bounding heap use for hostile output.
+     */
+    private static final class StreamGobbler implements Runnable {
+
+        private final InputStream in;
+        private final StringBuilder sb = new StringBuilder();
+        private boolean truncated = false;
+
+        StreamGobbler(InputStream in) {
+            this.in = in;
+        }
+
+        @Override
+        public void run() {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (sb.length() < MAX_OUTPUT_BYTES) {
+                        sb.append(line).append("\n");
+                    } else if (!truncated) {
+                        truncated = true;
+                        sb.append("\n[output truncated]\n");
+                    }
+                    // keep draining past the cap so the pipe never fills
+                }
+            } catch (IOException ignored) {
+                // stream closed (e.g. process destroyed) — nothing more to read
+            }
+        }
+
+        String getOutput() {
+            return sb.toString();
+        }
     }
 }

@@ -123,7 +123,12 @@ public class TxMetadataProcessor {
                     txHash,
                     slot);
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // Throwable, not Exception: hostile metadata can nest PlutusData
+            // deeply enough to raise StackOverflowError during the recursive
+            // deserialize/parse. That's an Error, not an Exception, and letting
+            // it escape would kill the yaci-store event thread — so one crafted
+            // tx must not take down ingest. Nothing is persisted on this path.
             var txHash = txMetadataLabel.getTxHash();
             var blockHash = eventMetadata.getBlockHash();
             log.error("Failed to process verification metadata from tx {} at block {}", txHash, blockHash, e);
