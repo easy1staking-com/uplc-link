@@ -8,12 +8,16 @@ WORKDIR /app
 ARG CARDANO_NETWORK=mainnet
 ARG BACKEND_URL=http://localhost:8080
 ARG BLOCKFROST_PROJECT_ID=""
+# Public origin of THIS deployment (e.g. https://preview.uplc.link) —
+# social cards resolve og:image/og:url against it
+ARG BASE_URL=https://uplc.link
 
 # Set environment variables for Next.js build
 # These are baked into the static build at compile time
 ENV NEXT_PUBLIC_CARDANO_NETWORK=$CARDANO_NETWORK
 ENV NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL
 ENV NEXT_PUBLIC_BLOCKFROST_PROJECT_ID=$BLOCKFROST_PROJECT_ID
+ENV NEXT_PUBLIC_BASE_URL=$BASE_URL
 
 # Copy package files
 COPY package*.json ./
