@@ -1,4 +1,4 @@
--- Create script table
+-- Create script table (greenfield baseline)
 -- Stores individual script/validator information extracted from plutus.json
 
 CREATE TABLE script (
@@ -31,7 +31,15 @@ CREATE TABLE script (
     CONSTRAINT fk_script_verification_request
         FOREIGN KEY (verification_request_id)
         REFERENCES verification_request(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+
+    -- Parameterization status check
+    CONSTRAINT chk_parameterization_status
+        CHECK (parameterization_status IN ('NONE_REQUIRED', 'PARTIAL', 'COMPLETE')),
+
+    -- Plutus version check
+    CONSTRAINT chk_plutus_version
+        CHECK (plutus_version IN ('V1', 'V2', 'V3'))
 );
 
 -- Indexes for query performance
@@ -43,14 +51,6 @@ CREATE INDEX idx_script_module_name ON script(module_name);
 
 -- Composite index for repo queries
 CREATE INDEX idx_script_repo_lookup ON script(verification_request_id, script_name);
-
--- Parameterization status check
-ALTER TABLE script ADD CONSTRAINT chk_parameterization_status
-    CHECK (parameterization_status IN ('NONE_REQUIRED', 'PARTIAL', 'COMPLETE'));
-
--- Plutus version check
-ALTER TABLE script ADD CONSTRAINT chk_plutus_version
-    CHECK (plutus_version IN ('V1', 'V2', 'V3'));
 
 -- Comments
 COMMENT ON TABLE script IS 'Stores individual smart contract scripts/validators';
