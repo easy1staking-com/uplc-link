@@ -5,7 +5,6 @@ import { useWallet } from '@/lib/cardano/wallet-hooks';
 import { buildRegistrySubmissionTx, signAndSubmitTx, estimateRegistrySubmissionFee } from '@/lib/cardano/transaction-builder';
 import type { VerificationMetadata } from '@/lib/cardano/metadata-encoder';
 import type { VerificationData } from '@/lib/types/verification';
-import { cborEncodeHash } from '@/lib/cardano/metadata-encoder';
 import { config } from '@/lib/config';
 
 interface SubmitToRegistryProps {
@@ -25,35 +24,19 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
   /**
    * Build parameters map from verification results
    * Maps script hash to list of CBOR-encoded parameter values
+   *
+   * The verify page pre-encodes every parameter (validator-hash references
+   * already resolved) into encodedParams, keyed by the raw (unapplied) hash —
+   * the backend looks parameters up by raw hash, not the final calculated one.
    */
   function buildParametersMap(): Record<string, string[]> {
     const map: Record<string, string[]> = {};
 
     verificationData.results.forEach(result => {
-      const params = verificationData.validatorParams[result.hash];
-      if (!params || params.length === 0) return;
-
-      // Use the raw hash (before parameterization) as the key
-      // The backend looks up parameters by raw hash, not by the final calculated hash
-      const scriptHash = result.actual;
-
-      // Map parameter values
-      const encodedParams = params.map(param => {
-        if (param.useValidatorRef && param.referenceTo) {
-          // Reference to another validator - get its hash and CBOR encode
-          const refHash = verificationData.calculatedHashes[param.referenceTo];
-          if (!refHash) {
-            console.warn(`Reference validator hash ${param.referenceTo} not found`);
-            return '';
-          }
-          return cborEncodeHash(refHash);
-        }
-        // Parameter value is already CBOR encoded from UI
-        return param.value;
-      }).filter(Boolean);
-
+      // Raw hash (before parameterization) is the key
+      const encodedParams = (verificationData.encodedParams[result.hash] || []).filter(Boolean);
       if (encodedParams.length > 0) {
-        map[scriptHash] = encodedParams;
+        map[result.actual] = encodedParams;
       }
     });
 
@@ -144,7 +127,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
 
   // Count validators that will be submitted
   const validatorsWithParams = verificationData.results.filter(
-    r => verificationData.validatorParams[r.hash]?.length > 0
+    r => verificationData.encodedParams[r.hash]?.length > 0
   ).length;
 
   return (
@@ -229,9 +212,9 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
                           {verificationData.results.map((result, idx) => (
                             <li key={idx}>
                               {result.validatorModule}.{result.validatorName}
-                              {verificationData.validatorParams[result.hash]?.length > 0 && (
+                              {verificationData.encodedParams[result.hash]?.length > 0 && (
                                 <span className="text-gray-400">
-                                  {' '}({verificationData.validatorParams[result.hash].length} param{verificationData.validatorParams[result.hash].length !== 1 ? 's' : ''})
+                                  {' '}({verificationData.encodedParams[result.hash].length} param{verificationData.encodedParams[result.hash].length !== 1 ? 's' : ''})
                                 </span>
                               )}
                             </li>

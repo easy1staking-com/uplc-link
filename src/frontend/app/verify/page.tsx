@@ -5,50 +5,21 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { backendClient } from "@/lib/api/backend-client";
 import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
-import { encodeParameterValue } from "@/lib/cardano/cbor-encoding";
-import { applyParamsAndHash } from "@/lib/cardano/script-hash";
+import { ParamBuilder } from "@/components/builder/ParamBuilder";
+import type { BuilderContext } from "@/components/builder/context";
+import { applyPayloadsAndHash } from "@/lib/blueprint/apply-params";
+import { payloadToCborHex, hasRawPayload, type ParamPayload } from "@/lib/blueprint/encode";
+import { encodeParameterState } from "@/lib/blueprint/param-state";
+import { decodeCborToFormValue } from "@/lib/blueprint/decode";
+import { classifySchema, describeSchema, emptyFormValue } from "@/lib/blueprint/schema";
+import type {
+  BlueprintDefinitions,
+  BlueprintSchema,
+  ParameterState,
+} from "@/lib/blueprint/types";
+import type { VerificationResult, ValidatorParams } from "@/lib/types/verification";
 import { toAikenReleaseTag } from "@/lib/aiken-version";
 import type { VerificationResponseDto } from "@/lib/types/registry";
-
-interface ParameterSchema {
-  title?: string;
-  schema: any;
-}
-
-interface VerificationResult {
-  success: boolean;
-  results: {
-    validator: string;
-    validatorModule: string;
-    validatorName: string;
-    purposes: string[];
-    hash: string;
-    parameters?: ParameterSchema[];
-    expected: string;
-    actual: string;
-    matches: boolean | null;
-    missing: boolean;
-    requiresParams?: boolean;
-    parameterized?: boolean;
-    compiledCode?: string;
-    plutusVersion?: "V1" | "V2" | "V3";
-  }[];
-  buildLog?: string;
-  error?: string;
-  warnings?: string[];
-}
-
-interface ParameterValue {
-  name: string;
-  value: string;
-  useValidatorRef: boolean;
-  referenceTo?: string;
-  rawCborMode: boolean;
-}
-
-interface ValidatorParams {
-  [hash: string]: ParameterValue[];
-}
 
 function VerifyPageContent() {
   const searchParams = useSearchParams();
@@ -77,61 +48,16 @@ function VerifyPageContent() {
   // Track if we should auto-verify after loading
   const [shouldAutoVerify, setShouldAutoVerify] = useState(false);
 
-  // Helper functions (same as main page)
-  const isHashParameter = (paramName: string): boolean => {
-    const name = paramName.toLowerCase();
-    return name.includes("hash") || name.includes("validator") ||
-           name.includes("script") || name.includes("policy");
-  };
+  // Fully-encoded parameter CBOR (raw hash -> hex list), derived alongside
+  // calculatedHashes and handed to the registry submission
+  const [encodedParams, setEncodedParams] = useState<Record<string, string[]>>({});
 
-  const getParameterType = (schema: any): string => {
-    if (!schema) return "unknown";
-    if (schema.dataType) {
-      if (schema.dataType === "map") return "map (CBOR)";
-      if (schema.dataType === "constructor" || schema.dataType === "list") {
-        return `${schema.dataType} (CBOR)`;
-      }
-      return schema.dataType;
-    }
-    if (schema.$ref) {
-      const refParts = schema.$ref.split('/');
-      const typeName = refParts[refParts.length - 1];
-      const cleaned = typeName.replace(/~1/g, '/').replace(/~0/g, '~');
-      const parts = cleaned.split('/');
-      return parts[parts.length - 1];
-    }
-    if (schema.items) {
-      const itemType = getParameterType(schema.items);
-      return `List<${itemType}>`;
-    }
-    if (schema.keys && schema.values) return "map (CBOR)";
-    if (schema.anyOf && schema.anyOf.length > 0) {
-      return schema.anyOf[0].title || "constructor (CBOR)";
-    }
-    return "unknown";
-  };
+  // Raw (unapplied) hashes of validators whose applied parameters include raw
+  // UPLC constants — registry submission is gated for these (the metadata
+  // format cannot express them; the backend would store a wrong final hash)
+  const [rawParamValidators, setRawParamValidators] = useState<string[]>([]);
 
-  const isComplexType = (schema: any): boolean => {
-    if (!schema) return false;
-    return !isByteArrayType(schema) && !isIntegerType(schema);
-  };
-
-  const isByteArrayType = (schema: any): boolean => {
-    if (!schema) return false;
-    const type = getParameterType(schema).toLowerCase();
-    return type.includes('byte') || type.includes('hash') || type.includes('policy');
-  };
-
-  const isIntegerType = (schema: any): boolean => {
-    if (!schema) return false;
-    const type = getParameterType(schema).toLowerCase();
-    return type.includes('int') || type === 'integer';
-  };
-
-  const cborEncodeHash = (hash: string): string => {
-    const cleanHash = hash.trim().replace(/^0x/, "");
-    return `581C${cleanHash}`;
-  };
+  const definitions: BlueprintDefinitions = verificationResult?.definitions ?? {};
 
   // Fetch Aiken versions on mount
   useEffect(() => {
@@ -256,14 +182,17 @@ function VerifyPageContent() {
 
     const calculateHashes = () => {
       try {
+        const defs = verificationResult.definitions ?? {};
         const newCalculatedHashes: Record<string, string> = {};
+        const newEncodedParams: Record<string, string[]> = {};
+        const newRawParamValidators = new Set<string>();
 
         for (const result of verificationResult.results) {
           newCalculatedHashes[result.hash] = result.actual;
         }
 
         let changed = true;
-        let maxPasses = 10;
+        const maxPasses = 10;
         let passCount = 0;
 
         while (changed && passCount < maxPasses) {
@@ -276,33 +205,50 @@ function VerifyPageContent() {
             const params = validatorParams[result.hash];
             if (!params || params.length === 0) continue;
 
-            const hasValues = params.some(p => p.value || p.referenceTo);
-            if (!hasValues) continue;
+            // Only apply once the user (or deep-link prefill) has provided
+            // EVERY value — a partially-touched validator must not silently
+            // apply its siblings' encodable defaults (e.g. an empty list).
+            // No-input params (raw #unit) are marked touched at init.
+            if (!params.every(p => p.touched)) continue;
 
             try {
-              const resolvedParams = params.map((param, paramIdx) => {
-                if (param.useValidatorRef && param.referenceTo) {
-                  const referencedHash = newCalculatedHashes[param.referenceTo];
-                  if (!referencedHash) return "";
-                  return cborEncodeHash(referencedHash);
-                }
+              const payloads: ParamPayload[] = [];
+              const hexes: string[] = [];
+              let complete = true;
 
-                if (!param.value) return "";
-
-                const paramSchema = result.parameters?.[paramIdx];
-                const paramType = paramSchema ? getParameterType(paramSchema.schema) : "unknown";
-
+              for (let paramIdx = 0; paramIdx < params.length; paramIdx++) {
+                const paramSchema = result.parameters?.[paramIdx]?.schema;
+                let payload: ParamPayload | null = null;
                 try {
-                  return encodeParameterValue(param.value, paramType, param.rawCborMode);
-                } catch (error) {
-                  console.error(`Parameter encoding error for ${param.name}:`, error);
-                  return "";
+                  payload = encodeParameterState(
+                    paramSchema,
+                    defs,
+                    params[paramIdx],
+                    (h) => newCalculatedHashes[h]
+                  );
+                } catch {
+                  // Incomplete/invalid input — treated as not yet provided
                 }
-              });
+                if (!payload) {
+                  complete = false;
+                  break;
+                }
+                payloads.push(payload);
+                hexes.push(payloadToCborHex(payload));
+              }
 
-              if (resolvedParams.some(p => !p)) continue;
+              if (!complete) continue;
 
-              const { hash } = applyParamsAndHash(result.compiledCode, resolvedParams, result.plutusVersion);
+              // Raw UPLC constant params verify client-side, but the on-chain
+              // registry metadata can only carry Data-level parameters — the
+              // backend would replay them as Data and store a wrong hash.
+              // Track them so registry submission can be gated.
+              if (hasRawPayload(payloads)) {
+                newRawParamValidators.add(result.hash);
+              }
+
+              const { hash } = applyPayloadsAndHash(result.compiledCode, payloads, result.plutusVersion);
+              newEncodedParams[result.hash] = hexes;
 
               if (newCalculatedHashes[result.hash] !== hash) {
                 newCalculatedHashes[result.hash] = hash;
@@ -315,6 +261,8 @@ function VerifyPageContent() {
         }
 
         setCalculatedHashes(newCalculatedHashes);
+        setEncodedParams(newEncodedParams);
+        setRawParamValidators([...newRawParamValidators]);
       } catch (error) {
         console.error("Failed to calculate hashes:", error);
       }
@@ -324,29 +272,91 @@ function VerifyPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validatorParams, verificationResult]);
 
-  // Initialize params with stored values from deep link
+  /** Default builder state for one parameter schema. */
+  const defaultParamState = (
+    name: string,
+    schema: BlueprintSchema,
+    defs: BlueprintDefinitions
+  ): ParameterState => {
+    const classified = classifySchema(schema, defs);
+    const formCapable = classified.kind !== "opaque" && classified.kind !== "unsupported";
+    return {
+      name,
+      mode: formCapable ? "form" : "cbor",
+      formValue: formCapable ? emptyFormValue(schema, defs) : null,
+      cborHex: "",
+      // Raw #unit has no input to interact with — count it as provided so
+      // the every-param-touched guard doesn't block it forever
+      touched: classified.kind === "raw" && classified.raw === "unit",
+    };
+  };
+
+  // Initialize params with stored values from deep link:
+  // stored CBOR decodes into Form mode when it parses against the schema,
+  // otherwise it lands in CBOR mode as-is.
   const initializeParamsFromDeepLink = (
-    results: VerificationResult["results"],
+    result: VerificationResult,
     deepLinkScripts: VerificationResponseDto["scripts"]
   ) => {
+    const defs = result.definitions ?? {};
     const newParams: ValidatorParams = {};
 
-    results.forEach(validator => {
+    result.results.forEach(validator => {
       if (validator.parameters && validator.parameters.length > 0) {
         // Find matching script from deep link data by raw hash
         const storedScript = deepLinkScripts.find(s => s.rawHash === validator.hash);
         const storedParams = storedScript?.providedParameters || [];
 
         newParams[validator.hash] = validator.parameters.map((param, idx) => {
+          const name = param.title || "param";
           const storedValue = storedParams[idx] || "";
-          const isComplex = isComplexType(param.schema);
+          if (!storedValue) return defaultParamState(name, param.schema, defs);
+
+          const decoded = decodeCborToFormValue(storedValue, param.schema, defs);
+          if (decoded) {
+            return {
+              name,
+              mode: "form" as const,
+              formValue: decoded,
+              cborHex: storedValue,
+              touched: true,
+            };
+          }
+
+          // Legacy registry entries stored some bytes parameters as bare hex
+          // (no CBOR envelope) — prefill the bytes form directly when the
+          // schema is bytes-shaped and the value is plain hex.
+          //
+          // Known ambiguity (accepted): a bare-hex value that happens to be
+          // self-delimiting CBOR of the wrong shape (e.g. "182a" on a bytes
+          // schema) prefills as literal bytes 0x18 0x2a rather than failing.
+          // The stored value was malformed either way, the prefilled hash
+          // then visibly mismatches, and the user can correct it in the form.
+          const classified = classifySchema(param.schema, defs);
+          if (
+            classified.kind === "bytes" &&
+            /^[0-9a-fA-F]+$/.test(storedValue) &&
+            storedValue.length % 2 === 0
+          ) {
+            return {
+              name,
+              mode: "form" as const,
+              formValue: {
+                kind: "bytes" as const,
+                mode: "hex" as const,
+                text: storedValue.toLowerCase(),
+              },
+              cborHex: "",
+              touched: true,
+            };
+          }
 
           return {
-            name: param.title || "param",
-            value: storedValue, // Pre-fill with stored CBOR value
-            useValidatorRef: false, // Use raw value mode since we have CBOR
-            referenceTo: undefined,
-            rawCborMode: true, // Stored values are already CBOR-encoded
+            name,
+            mode: "cbor" as const,
+            formValue: null,
+            cborHex: storedValue,
+            touched: true,
           };
         });
       }
@@ -356,30 +366,24 @@ function VerifyPageContent() {
   };
 
   // Initialize params without deep link data
-  const initializeParams = (results: VerificationResult["results"]) => {
+  const initializeParams = (result: VerificationResult) => {
+    const defs = result.definitions ?? {};
     const newParams: ValidatorParams = {};
-    results.forEach(validator => {
+    result.results.forEach(validator => {
       if (validator.parameters && validator.parameters.length > 0) {
-        newParams[validator.hash] = validator.parameters.map(param => {
-          const isComplex = isComplexType(param.schema);
-          return {
-            name: param.title || "param",
-            value: "",
-            useValidatorRef: isHashParameter(param.title || ""),
-            referenceTo: undefined,
-            rawCborMode: isComplex,
-          };
-        });
+        newParams[validator.hash] = validator.parameters.map(param =>
+          defaultParamState(param.title || "param", param.schema, defs)
+        );
       }
     });
     setValidatorParams(newParams);
   };
 
-  const updateParamValue = (hash: string, paramIndex: number, field: keyof ParameterValue, value: any) => {
+  const updateParamState = (hash: string, paramIndex: number, state: ParameterState) => {
     setValidatorParams(prev => ({
       ...prev,
       [hash]: prev[hash].map((param, idx) =>
-        idx === paramIndex ? { ...param, [field]: value } : param
+        idx === paramIndex ? { ...state, touched: true } : param
       ),
     }));
   };
@@ -425,9 +429,9 @@ function VerifyPageContent() {
       // Initialize parameters - use deep link data if available
       if (Object.keys(validatorParams).length === 0) {
         if (deepLinkData) {
-          initializeParamsFromDeepLink(result.results, deepLinkData.scripts);
+          initializeParamsFromDeepLink(result, deepLinkData.scripts);
         } else {
-          initializeParams(result.results);
+          initializeParams(result);
         }
       }
     } catch (error) {
@@ -700,7 +704,7 @@ function VerifyPageContent() {
 
                     const params = validatorParams[r.hash] || [];
                     const hasParameters = r.parameters && r.parameters.length > 0;
-                    const parametersProvided = hasParameters && params.some(p => p.value || p.referenceTo);
+                    const parametersProvided = hasParameters && params.some(p => p.touched);
 
                     return (
                       <div
@@ -733,7 +737,7 @@ function VerifyPageContent() {
                               <ul className="ml-4 mt-1 text-xs">
                                 {r.parameters!.map((param, pidx) => (
                                   <li key={pidx} className="text-gray-300">
-                                    - {param.title || `param${pidx}`} ({getParameterType(param.schema)})
+                                    - {param.title || `param${pidx}`} ({describeSchema(param.schema, definitions)})
                                   </li>
                                 ))}
                               </ul>
@@ -771,7 +775,7 @@ function VerifyPageContent() {
                 </div>
               )}
 
-              {/* Parameter Input Section */}
+              {/* Parameter Input Section — blueprint-driven builder */}
               {verificationResult.results.some(r => r.parameters && r.parameters.length > 0) && (
                 <div className="mt-6 p-6 bg-zinc-900 border border-zinc-800 rounded">
                   <h3 className="text-lg font-semibold mb-4">Configure Validator Parameters</h3>
@@ -780,120 +784,55 @@ function VerifyPageContent() {
                       ? "Parameters have been pre-filled from the verification transaction. Modify if needed."
                       : "Some validators require parameters. Fill in the values below - hashes will update automatically."}
                   </p>
-                  <div className="space-y-6">
-                    {verificationResult.results
-                      .filter(r => r.parameters && r.parameters.length > 0)
-                      .map((r) => {
-                        const params = validatorParams[r.hash] || [];
-                        return (
-                          <div key={r.hash} className="border border-zinc-700 rounded p-4">
-                            <h4 className="font-medium mb-3">
-                              {r.validator}
-                              <span className="text-xs text-gray-400 ml-2">
-                                (Hash: {r.hash.substring(0, 16)}...)
-                              </span>
-                            </h4>
-                            <div className="space-y-3">
-                              {r.parameters!.map((param, pidx) => {
-                                const paramValue = params[pidx];
-                                if (!paramValue) return null;
+                  {(() => {
+                    const ctx: BuilderContext = {
+                      definitions,
+                      validators: verificationResult.results.map(v => ({
+                        hash: v.hash,
+                        name: v.validator,
+                        currentHash: calculatedHashes[v.hash] || v.actual,
+                      })),
+                    };
+                    const resolveValidatorRef = (h: string) =>
+                      calculatedHashes[h] || verificationResult.results.find(v => v.hash === h)?.actual;
 
-                                return (
-                                  <div key={pidx} className="space-y-2">
-                                    <label className="block text-sm font-medium">
-                                      {param.title || `Parameter ${pidx + 1}`}
-                                      <span className="text-gray-500 ml-2 text-xs">
-                                        ({getParameterType(param.schema)})
-                                      </span>
-                                    </label>
-
-                                    <div className="flex flex-col gap-2 mb-2">
-                                      {isByteArrayType(param.schema) && (
-                                        <label className="flex items-center text-sm text-gray-400">
-                                          <input
-                                            type="checkbox"
-                                            checked={paramValue.useValidatorRef}
-                                            onChange={(e) => updateParamValue(r.hash, pidx, "useValidatorRef", e.target.checked)}
-                                            className="mr-2"
-                                          />
-                                          Use validator hash reference
-                                        </label>
-                                      )}
-
-                                      {!paramValue.useValidatorRef && (
-                                        <label className={`flex items-center text-sm ${isComplexType(param.schema) ? 'text-gray-500' : 'text-gray-400'}`}>
-                                          <input
-                                            type="checkbox"
-                                            checked={paramValue.rawCborMode}
-                                            onChange={(e) => updateParamValue(r.hash, pidx, "rawCborMode", e.target.checked)}
-                                            disabled={isComplexType(param.schema)}
-                                            className="mr-2"
-                                          />
-                                          Raw CBOR mode (advanced)
-                                          {isComplexType(param.schema) && (
-                                            <span className="ml-1 text-xs">(required)</span>
-                                          )}
-                                        </label>
-                                      )}
-                                    </div>
-
-                                    {paramValue.useValidatorRef ? (
-                                      <select
-                                        value={paramValue.referenceTo || ""}
-                                        onChange={(e) => updateParamValue(r.hash, pidx, "referenceTo", e.target.value)}
-                                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm focus:outline-none focus:border-zinc-600"
-                                      >
-                                        <option value="">Select a validator...</option>
-                                        {verificationResult.results.map((v) => {
-                                          const currentHash = calculatedHashes[v.hash] || v.actual;
-                                          return (
-                                            <option key={v.hash} value={v.hash}>
-                                              {v.validator} ({currentHash.substring(0, 16)}...)
-                                            </option>
-                                          );
-                                        })}
-                                      </select>
-                                    ) : (
-                                      <>
-                                        <input
-                                          type="text"
-                                          value={paramValue.value}
-                                          onChange={(e) => updateParamValue(r.hash, pidx, "value", e.target.value)}
-                                          placeholder={
-                                            paramValue.rawCborMode
-                                              ? "Enter CBOR hex (e.g., 581c... or 182a...)"
-                                              : isIntegerType(param.schema)
-                                              ? "Enter number (e.g., 42)"
-                                              : isByteArrayType(param.schema)
-                                              ? "Enter hex string (e.g., abc123...)"
-                                              : "Enter CBOR hex"
-                                          }
-                                          className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm font-mono focus:outline-none focus:border-zinc-600"
-                                        />
-                                        {!paramValue.rawCborMode && (
-                                          <div className="text-xs text-gray-400 mt-1">
-                                            {isIntegerType(param.schema)
-                                              ? "Enter as plain number - will be auto-encoded to CBOR"
-                                              : isByteArrayType(param.schema)
-                                              ? "Enter as hex string - will be auto-encoded to CBOR bytearray"
-                                              : ""}
-                                          </div>
-                                        )}
-                                        {paramValue.rawCborMode && !isComplexType(param.schema) && (
-                                          <div className="text-xs text-orange-400 mt-1">
-                                            Raw CBOR mode: Provide complete CBOR-encoded hex value
-                                          </div>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
+                    return (
+                      <div className="space-y-6">
+                        {verificationResult.results
+                          .filter(r => r.parameters && r.parameters.length > 0)
+                          .map((r) => {
+                            const params = validatorParams[r.hash] || [];
+                            return (
+                              <div key={r.hash} className="border border-zinc-700 rounded p-4">
+                                <h4 className="font-medium mb-3">
+                                  {r.validator}
+                                  <span className="text-xs text-gray-400 ml-2">
+                                    (Hash: {r.hash.substring(0, 16)}...)
+                                  </span>
+                                </h4>
+                                <div className="space-y-4">
+                                  {r.parameters!.map((param, pidx) => {
+                                    const state = params[pidx];
+                                    if (!state) return null;
+                                    return (
+                                      <ParamBuilder
+                                        key={pidx}
+                                        title={param.title || `Parameter ${pidx + 1}`}
+                                        schema={param.schema}
+                                        state={state}
+                                        onChange={(next) => updateParamState(r.hash, pidx, next)}
+                                        ctx={ctx}
+                                        resolveValidatorRef={resolveValidatorRef}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -902,8 +841,32 @@ function VerifyPageContent() {
                 const actualHashes = verificationResult.results.map(r => calculatedHashes[r.hash] || r.actual);
                 const allMatch = actualHashes.length === parsedExpectedHashes.length &&
                                  actualHashes.every(h => parsedExpectedHashes.includes(h));
+                if (!allMatch) return null;
 
-                return allMatch ? (
+                // Registry gate: the on-chain metadata format (label 1984)
+                // carries parameters as Plutus Data only. Raw UPLC constant
+                // params applied here client-side cannot be expressed, and
+                // the backend would replay them Data-level and store a wrong
+                // final hash as COMPLETE. Block submission, keep verification.
+                if (rawParamValidators.length > 0) {
+                  const names = verificationResult.results
+                    .filter(r => rawParamValidators.includes(r.hash))
+                    .map(r => r.validator);
+                  return (
+                    <div className="mt-6 p-4 bg-zinc-900 border border-orange-800 rounded">
+                      <h3 className="font-bold text-lg mb-2">Registry Submission Unavailable</h3>
+                      <p className="text-sm text-gray-300">
+                        {names.join(", ")} use{names.length === 1 ? "s" : ""} raw UPLC
+                        constant parameters (<code className="font-mono">#</code>-typed),
+                        which the on-chain registry format cannot yet express. The
+                        hash verification above is still valid — only registry
+                        submission is disabled.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
                   <SubmitToRegistry
                     verificationData={{
                       repoUrl,
@@ -913,11 +876,11 @@ function VerifyPageContent() {
                       env: env.trim() || undefined,
                       expectedHashes,
                       results: verificationResult.results,
-                      validatorParams,
+                      encodedParams,
                       calculatedHashes,
                     }}
                   />
-                ) : null;
+                );
               })()}
 
               {verificationResult.buildLog && (
