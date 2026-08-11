@@ -736,7 +736,7 @@ CARDANO_NODE_PORT=3001
 - Spring Boot 3.3
 - Java 21
 - PostgreSQL 14+
-- Yaci Store 0.1.6
+- Yaci Store 2.0.2
 
 ---
 

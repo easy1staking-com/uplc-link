@@ -21,7 +21,7 @@ public class TxMetadataEventListener {
             txMetadataEvent.getTxMetadataList()
                     .stream()
                     .filter(label -> label != null && PLUTUS_SCAN_METADATA_ID.equals(label.getLabel()))
-                    .forEach(txMetadataLabel -> txMetadataProcessor.process(txMetadataEvent.getEventMetadata(), txMetadataLabel));
+                    .forEach(txMetadataLabel -> txMetadataProcessor.process(txMetadataEvent.getMetadata(), txMetadataLabel));
         } catch (Exception e) {
             log.warn("error", e);
         }

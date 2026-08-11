@@ -29,8 +29,6 @@ store:
     sync-start-blockhash: 586ead1770fc2a59021b824bc0d65bf1d6060585384f257971204d5925f054c2
     sync-start-slot: 154984561
     keep-alive-interval: 1000
-  blocks:
-    epoch-calculation-interval=14400:  # 14400 = 4 hours
 
 management:
   endpoints:
