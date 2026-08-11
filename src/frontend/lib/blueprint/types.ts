@@ -82,4 +82,10 @@ export interface ParameterState {
   mode: "form" | "cbor";
   formValue: FormValue | null;
   cborHex: string;
+  /**
+   * True once the user (or deep-link prefill) has provided a value. Hash
+   * recalculation only kicks in for validators with touched parameters, so
+   * untouched empty defaults (e.g. an empty list) are never silently applied.
+   */
+  touched?: boolean;
 }

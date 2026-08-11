@@ -5,6 +5,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
 import { toAikenReleaseTag } from "@/lib/aiken-version";
+import type { BlueprintDefinitions, BlueprintPreamble, BlueprintSchema } from "@/lib/blueprint/types";
 
 // No shell: arguments are passed as arrays, never interpolated into a command line
 const execFileAsync = promisify(execFile);
@@ -60,7 +61,7 @@ interface VerifyRequest {
 
 interface ParameterSchema {
   title?: string;
-  schema: any;
+  schema: BlueprintSchema;
 }
 
 interface BuildResult {
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract hashes from build artifacts (grouped by module.name)
-    const buildResults = await extractBuildHashes(workDir, repoDir);
+    const { results: buildResults, definitions, preamble } = await extractBuildHashes(workDir, repoDir);
 
     // Build results for client-side processing
     // Note: No server-side parameterization or hash comparison anymore
@@ -209,6 +210,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true, // Always true, client determines actual success
       results,
+      // CIP-57 blueprint context for the client-side parameter builder
+      definitions,
+      preamble,
       buildLog: buildOutput,
       warnings: [], // No warnings from server
     });
@@ -235,7 +239,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function extractBuildHashes(repoPath: string, repoRoot: string): Promise<BuildResult[]> {
+interface ExtractedBlueprint {
+  results: BuildResult[];
+  definitions: BlueprintDefinitions;
+  preamble: BlueprintPreamble;
+}
+
+async function extractBuildHashes(repoPath: string, repoRoot: string): Promise<ExtractedBlueprint> {
   // Read plutus.json file which contains the build output
   const plutusJsonPath = path.join(repoPath, "plutus.json");
 
@@ -344,11 +354,15 @@ async function extractBuildHashes(repoPath: string, repoRoot: string): Promise<B
       });
     }
 
-    return results;
+    return {
+      results,
+      definitions: (data.definitions ?? {}) as BlueprintDefinitions,
+      preamble: (data.preamble ?? {}) as BlueprintPreamble,
+    };
   } catch (error) {
     // Malformed JSON or unexpected shape — treat as "no extractable validators"
     console.error("Failed to parse plutus.json:", error);
-    return [];
+    return { results: [], definitions: {}, preamble: {} };
   }
 }
 

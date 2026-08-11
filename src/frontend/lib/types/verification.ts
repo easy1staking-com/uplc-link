@@ -3,9 +3,16 @@
  * Used by the frontend verification flow
  */
 
+import type {
+  BlueprintDefinitions,
+  BlueprintPreamble,
+  BlueprintSchema,
+  ParameterState,
+} from "@/lib/blueprint/types";
+
 export interface ParameterSchema {
   title?: string;
-  schema: any;
+  schema: BlueprintSchema;
 }
 
 export interface VerificationResultItem {
@@ -28,20 +35,17 @@ export interface VerificationResultItem {
 export interface VerificationResult {
   success: boolean;
   results: VerificationResultItem[];
+  /** CIP-57 blueprint definitions map (drives the parameter builder) */
+  definitions?: BlueprintDefinitions;
+  preamble?: BlueprintPreamble;
   buildLog?: string;
   error?: string;
   warnings?: string[];
 }
 
-export interface ParameterValue {
-  name: string;
-  value: string;
-  useValidatorRef: boolean;
-  referenceTo?: string; // Which validator hash to reference
-}
-
+/** Builder state for all parameterized validators, keyed by raw script hash. */
 export interface ValidatorParams {
-  [hash: string]: ParameterValue[]; // Keyed by hash instead of name
+  [hash: string]: ParameterState[];
 }
 
 export interface VerificationData {
@@ -52,6 +56,11 @@ export interface VerificationData {
   env?: string; // aiken --env module; empty/absent = built without the flag
   expectedHashes: string;
   results: VerificationResultItem[];
-  validatorParams: ValidatorParams;
+  /**
+   * Fully-encoded parameter CBOR hex per validator (raw hash -> params in
+   * order), with validator-hash references already resolved. This is what
+   * goes into the registry metadata.
+   */
+  encodedParams: Record<string, string[]>;
   calculatedHashes: Record<string, string>;
 }
