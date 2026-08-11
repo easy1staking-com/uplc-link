@@ -301,10 +301,20 @@ function VerifyPageContent() {
     deepLinkScripts: VerificationResponseDto["scripts"]
   ) => {
     const defs = result.definitions ?? {};
+
+    setValidatorParams(prev => {
     const newParams: ValidatorParams = {};
 
     result.results.forEach(validator => {
       if (validator.parameters && validator.parameters.length > 0) {
+        // Keep in-progress state for a hash that's still present (re-verify
+        // of the same scripts) — don't clobber user edits with stored values
+        const existing = prev[validator.hash];
+        if (existing && existing.length === validator.parameters.length) {
+          newParams[validator.hash] = existing;
+          return;
+        }
+
         // Find matching script from deep link data by raw hash
         const storedScript = deepLinkScripts.find(s => s.rawHash === validator.hash);
         const storedParams = storedScript?.providedParameters || [];
@@ -364,21 +374,28 @@ function VerifyPageContent() {
       }
     });
 
-    setValidatorParams(newParams);
+    return newParams;
+    });
   };
 
   // Initialize params without deep link data
   const initializeParams = (result: VerificationResult) => {
     const defs = result.definitions ?? {};
-    const newParams: ValidatorParams = {};
-    result.results.forEach(validator => {
-      if (validator.parameters && validator.parameters.length > 0) {
-        newParams[validator.hash] = validator.parameters.map(param =>
-          defaultParamState(param.title || "param", param.schema, defs)
-        );
-      }
+    setValidatorParams(prev => {
+      const newParams: ValidatorParams = {};
+      result.results.forEach(validator => {
+        if (validator.parameters && validator.parameters.length > 0) {
+          const existing = prev[validator.hash];
+          newParams[validator.hash] =
+            existing && existing.length === validator.parameters.length
+              ? existing
+              : validator.parameters.map(param =>
+                  defaultParamState(param.title || "param", param.schema, defs)
+                );
+        }
+      });
+      return newParams;
     });
-    setValidatorParams(newParams);
   };
 
   const updateParamState = (hash: string, paramIndex: number, state: ParameterState) => {
@@ -428,13 +445,15 @@ function VerifyPageContent() {
 
       setVerificationResult(result);
 
-      // Initialize parameters - use deep link data if available
-      if (Object.keys(validatorParams).length === 0) {
-        if (deepLinkData) {
-          initializeParamsFromDeepLink(result, deepLinkData.scripts);
-        } else {
-          initializeParams(result);
-        }
+      // Initialize parameters for the new result set. State is keyed by
+      // validator hash and both initializers preserve existing entries for
+      // unchanged hashes, so re-verifying the same repo keeps typed values —
+      // but a different repo/version (all-new hashes) gets fresh form state
+      // instead of rendering empty parameter groups.
+      if (deepLinkData) {
+        initializeParamsFromDeepLink(result, deepLinkData.scripts);
+      } else {
+        initializeParams(result);
       }
     } catch (error) {
       setStatus("error");
@@ -724,7 +743,8 @@ function VerifyPageContent() {
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div>
-                            <div className="font-medium text-lg">{r.validatorModule}.{r.validatorName}</div>
+                            {/* r.validator dedupes alpha's module==name titles ("pool", not "pool.pool") */}
+                            <div className="font-medium text-lg">{r.validator}</div>
                             {r.purposes.length > 0 && (
                               <div className="text-xs text-gray-400 mt-1">
                                 Purposes: {r.purposes.join(", ")}
@@ -790,11 +810,24 @@ function VerifyPageContent() {
                       : "Some validators require parameters. Fill in the values below - hashes will update automatically."}
                   </p>
                   {(() => {
+                    // Alpha blueprints can yield several scripts with the same
+                    // validator name (e.g. sundae's pool.manage vs pool.spend/mint)
+                    // — append purposes when a name is ambiguous so the ref
+                    // dropdown and group headers are tellable apart.
+                    const nameCounts = new Map<string, number>();
+                    for (const v of verificationResult.results) {
+                      nameCounts.set(v.validator, (nameCounts.get(v.validator) ?? 0) + 1);
+                    }
+                    const displayName = (v: (typeof verificationResult.results)[number]) =>
+                      (nameCounts.get(v.validator) ?? 0) > 1 && v.purposes.length > 0
+                        ? `${v.validator} (${v.purposes.join(", ")})`
+                        : v.validator;
+
                     const ctx: BuilderContext = {
                       definitions,
                       validators: verificationResult.results.map(v => ({
                         hash: v.hash,
-                        name: v.validator,
+                        name: displayName(v),
                         currentHash: calculatedHashes[v.hash] || v.actual,
                       })),
                     };
@@ -810,7 +843,7 @@ function VerifyPageContent() {
                             return (
                               <div key={r.hash} className="border border-zinc-700 rounded p-4">
                                 <h4 className="font-medium mb-3">
-                                  {r.validator}
+                                  {displayName(r)}
                                   <span className="text-xs text-gray-400 ml-2">
                                     (Hash: {r.hash.substring(0, 16)}...)
                                   </span>
