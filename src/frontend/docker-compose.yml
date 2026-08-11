@@ -5,6 +5,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # All three are NEXT_PUBLIC_* inside the Dockerfile, so they are inlined
+      # into the bundle at COMPILE time — setting them under `environment:`
+      # below would have no effect. They must be build args.
+      #
+      # Populate .env.docker, then:
+      #   set -a; . ./.env.docker; set +a
+      #   CARDANO_NETWORK=preprod \
+      #     BLOCKFROST_PROJECT_ID="${BLOCKFROST_PROJECT_ID_PREPROD}" \
+      #     docker compose build
+      args:
+        CARDANO_NETWORK: ${CARDANO_NETWORK:-mainnet}
+        BACKEND_URL: ${BACKEND_URL:-http://localhost:8080}
+        # Public origin of this deployment; social cards resolve og:image against it.
+        BASE_URL: ${BASE_URL:-http://localhost:3000}
+        BLOCKFROST_PROJECT_ID: ${BLOCKFROST_PROJECT_ID:?set it to the project id for ${CARDANO_NETWORK:-mainnet} (see .env.docker); registry submission breaks without it}
     container_name: plutus-scan
     ports:
       - "3000:3000"
