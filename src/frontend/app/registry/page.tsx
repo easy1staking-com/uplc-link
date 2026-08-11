@@ -1,25 +1,6 @@
 import { Metadata } from 'next';
 import { RegistryPageContent } from './RegistryPageContent';
-
-// Helper function to fetch script data server-side for metadata
-async function fetchScriptByHash(hash: string) {
-  try {
-    // Construct the full URL for the API route
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/registry?action=byHash&hash=${hash}`, {
-      cache: 'no-store', // Don't cache since this is for OG tags
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching script for metadata:', error);
-    return null;
-  }
-}
+import { fetchScriptByHash } from '@/lib/social-cards';
 
 // Generate dynamic metadata based on hash parameter
 export async function generateMetadata({
@@ -73,6 +54,7 @@ export async function generateMetadata({
         description: `No verified script found for hash: ${hash.substring(0, 16)}...`,
         type: 'website',
         siteName: 'UPLC Scan',
+        url: `/registry?hash=${encodeURIComponent(hash)}`,
         images: [
           {
             url: `/api/og?type=registry&hash=${encodeURIComponent(hash)}`,
@@ -86,6 +68,7 @@ export async function generateMetadata({
         card: 'summary_large_image',
         title: 'Script Not Found | UPLC Scan',
         description: `No verified script found for hash: ${hash.substring(0, 16)}...`,
+        images: [`/api/og?type=registry&hash=${encodeURIComponent(hash)}`],
       },
     };
   }
@@ -116,6 +99,7 @@ export async function generateMetadata({
       description,
       type: 'website',
       siteName: 'UPLC Scan',
+      url: `/registry?hash=${encodeURIComponent(hash)}`,
       images: [
         {
           url: `/api/og?type=registry&hash=${encodeURIComponent(hash)}`,
@@ -129,6 +113,7 @@ export async function generateMetadata({
       card: 'summary_large_image',
       title: `${scriptName}`,
       description: `Verified ${script.purpose} | ${script.plutusVersion} | ${statusText} | Source: ${repoName}@${commitShort}`,
+      images: [`/api/og?type=registry&hash=${encodeURIComponent(hash)}`],
     },
   };
 }

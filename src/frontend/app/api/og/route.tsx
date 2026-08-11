@@ -1,66 +1,230 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { ImageResponse } from 'next/og';
+import {
+  fetchScriptByHash,
+  fetchVerificationByTxHash,
+  repoDisplayName,
+  SITE_URL,
+} from '@/lib/social-cards';
 
-// Helper to fetch script data
-async function fetchScriptByHash(hash: string) {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/registry?action=byHash&hash=${hash}`, {
-      cache: 'no-store',
-    });
+// PNG output is required: X and Facebook do not render SVG og:images.
+// Short shared cache — card contents change as verifications are indexed.
+const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=86400';
 
-    if (!response.ok) {
-      return null;
-    }
+const WIDTH = 1200;
+const HEIGHT = 630;
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching script for OG image:', error);
-    return null;
-  }
+interface Detail {
+  label: string;
+  value: string;
 }
 
-// Generate SVG OG image
-function generateSVG(config: {
+interface Badge {
+  text: string;
+  color: string;
+  textColor?: string;
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? value.substring(0, max - 3) + '...' : value;
+}
+
+function Card({
+  title,
+  subtitle,
+  badges = [],
+  details = [],
+}: {
   title: string;
   subtitle?: string;
-  details?: Array<{ label: string; value: string }>;
-  statusColor?: string;
-  statusText?: string;
+  badges?: Badge[];
+  details?: Detail[];
 }) {
-  const { title, subtitle, details = [], statusColor, statusText } = config;
+  const hostname = SITE_URL.replace(/^https?:\/\//, '');
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: '#09090b',
+        padding: '64px 80px',
+        fontFamily: 'sans-serif',
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 24 }}>
+        <span style={{ fontSize: 40, fontWeight: 700, color: '#3b82f6' }}>
+          UPLC Link
+        </span>
+        {subtitle && (
+          <span style={{ fontSize: 26, color: '#71717a' }}>{subtitle}</span>
+        )}
+      </div>
 
-  const detailsHTML = details
-    .map(
-      (d, i) => `
-    <text x="80" y="${440 + i * 40}" font-size="20" fill="#71717a">${d.label}:</text>
-    <text x="80" y="${465 + i * 40}" font-size="24" fill="#a1a1aa" font-family="monospace">${d.value}</text>
-  `
-    )
-    .join('');
+      {/* Title */}
+      <div
+        style={{
+          display: 'flex',
+          marginTop: 56,
+          fontSize: 58,
+          fontWeight: 700,
+          color: '#ffffff',
+          lineHeight: 1.15,
+        }}
+      >
+        {truncate(title, 44)}
+      </div>
 
-  const statusBadge = statusColor && statusText
-    ? `<rect x="80" y="280" width="${statusText.length * 12 + 40}" height="40" rx="8" fill="${statusColor}"/>
-       <text x="${80 + (statusText.length * 12 + 40) / 2}" y="306" font-size="20" font-weight="bold" fill="#000" text-anchor="middle">${statusText}</text>`
-    : '';
+      {/* Badges */}
+      {badges.length > 0 && (
+        <div style={{ display: 'flex', gap: 16, marginTop: 32 }}>
+          {badges.map((badge) => (
+            <div
+              key={badge.text}
+              style={{
+                display: 'flex',
+                backgroundColor: badge.color,
+                color: badge.textColor ?? '#000000',
+                fontSize: 22,
+                fontWeight: 700,
+                padding: '8px 20px',
+                borderRadius: 10,
+              }}
+            >
+              {badge.text}
+            </div>
+          ))}
+        </div>
+      )}
 
-  return `
-    <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
-      <rect width="1200" height="630" fill="#09090b"/>
+      {/* Details */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          marginTop: 'auto',
+          gap: 14,
+        }}
+      >
+        {details.map((detail) => (
+          <div
+            key={detail.label + detail.value}
+            style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}
+          >
+            {detail.label && (
+              <span style={{ fontSize: 22, color: '#71717a', minWidth: 130 }}>
+                {detail.label}
+              </span>
+            )}
+            <span style={{ fontSize: 25, color: '#a1a1aa' }}>
+              {truncate(detail.value, 70)}
+            </span>
+          </div>
+        ))}
+        <div
+          style={{
+            display: 'flex',
+            marginTop: 18,
+            paddingTop: 22,
+            borderTop: '1px solid #27272a',
+            fontSize: 22,
+            color: '#52525b',
+          }}
+        >
+          {hostname}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      <!-- Header -->
-      <text x="80" y="80" font-size="36" font-weight="bold" fill="#3b82f6">UPLC Scan</text>
-      ${subtitle ? `<text x="300" y="80" font-size="24" fill="#71717a">${subtitle}</text>` : ''}
+function statusBadge(parameterizationStatus: string): Badge {
+  if (parameterizationStatus === 'COMPLETE') {
+    return { text: 'Fully Parameterized', color: '#22c55e' };
+  }
+  if (parameterizationStatus === 'PARTIAL') {
+    return { text: 'Partially Parameterized', color: '#eab308' };
+  }
+  return { text: 'Not Parameterized', color: '#6b7280', textColor: '#ffffff' };
+}
 
-      <!-- Title -->
-      <text x="80" y="180" font-size="56" font-weight="bold" fill="#ffffff" style="max-width: 1040px;">${title.length > 40 ? title.substring(0, 37) + '...' : title}</text>
+function verificationStatusBadge(status: string): Badge {
+  if (status === 'VERIFIED') {
+    return { text: 'Verified', color: '#22c55e' };
+  }
+  if (status === 'FAILED') {
+    return { text: 'Verification Failed', color: '#ef4444', textColor: '#ffffff' };
+  }
+  return { text: status, color: '#6b7280', textColor: '#ffffff' };
+}
 
-      <!-- Status Badge -->
-      ${statusBadge}
+function compilerDetail(compilerType: string, compilerVersion: string, env: string | null): Detail {
+  return {
+    label: 'Compiler',
+    value: `${compilerType} ${compilerVersion}${env ? ` (env: ${env})` : ''}`,
+  };
+}
 
-      <!-- Details -->
-      ${detailsHTML}
-    </svg>
-  `.trim();
+async function registryCard(hash: string) {
+  const data = await fetchScriptByHash(hash);
+  if (!data || !data.scripts || data.scripts.length === 0) {
+    return (
+      <Card
+        title="Script Not Found"
+        subtitle="Registry"
+        details={[{ label: 'Hash', value: truncate(hash, 44) }]}
+      />
+    );
+  }
+  const script = data.scripts[0];
+  return (
+    <Card
+      title={`${script.moduleName}.${script.validatorName}`}
+      subtitle="Verified Smart Contract"
+      badges={[statusBadge(script.parameterizationStatus)]}
+      details={[
+        { label: 'Hash', value: hash.substring(0, 32) + '...' },
+        {
+          label: 'Source',
+          value: `${repoDisplayName(data.sourceUrl)} @ ${data.commitHash.substring(0, 8)}`,
+        },
+        compilerDetail(data.compilerType, data.compilerVersion, data.env),
+      ]}
+    />
+  );
+}
+
+async function verifyCard(txHash: string) {
+  const data = await fetchVerificationByTxHash(txHash);
+  if (!data) {
+    return (
+      <Card
+        title="Verification Not Found"
+        subtitle="Verify"
+        details={[{ label: 'Transaction', value: truncate(txHash, 44) }]}
+      />
+    );
+  }
+  const scriptCount = new Set(
+    data.scripts.map((s) => s.finalHash || s.rawHash).filter(Boolean)
+  ).size;
+  return (
+    <Card
+      title={repoDisplayName(data.sourceUrl)}
+      subtitle="On-chain Verification"
+      badges={[verificationStatusBadge(data.status)]}
+      details={[
+        { label: 'Commit', value: data.commitHash.substring(0, 12) },
+        compilerDetail(data.compilerType, data.compilerVersion, data.env),
+        {
+          label: 'Scripts',
+          value: `${scriptCount} script hash${scriptCount === 1 ? '' : 'es'}`,
+        },
+      ]}
+    />
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -68,103 +232,61 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'home';
     const hash = searchParams.get('hash');
+    const txHash = searchParams.get('txHash');
 
-    let svgContent: string;
-
-    // Registry with hash - show script details
+    let card: React.ReactElement;
     if (type === 'registry' && hash) {
-      const scriptData = await fetchScriptByHash(hash);
-
-      if (scriptData && scriptData.scripts && scriptData.scripts.length > 0) {
-        const script = scriptData.scripts[0];
-        const scriptName = `${script.moduleName}.${script.validatorName}`;
-        const shortHash = hash.substring(0, 24) + '...';
-        const repoName = scriptData.sourceUrl.split('/').slice(-2).join('/');
-        const commitShort = scriptData.commitHash.substring(0, 8);
-
-        const statusColor =
-          script.parameterizationStatus === 'COMPLETE'
-            ? '#22c55e'
-            : script.parameterizationStatus === 'PARTIAL'
-            ? '#eab308'
-            : '#6b7280';
-
-        const statusText =
-          script.parameterizationStatus === 'COMPLETE'
-            ? '✓ Fully Parameterized'
-            : script.parameterizationStatus === 'PARTIAL'
-            ? '⚡ Partially Parameterized'
-            : 'Not Parameterized';
-
-        svgContent = generateSVG({
-          title: scriptName,
-          subtitle: 'Verified Smart Contract',
-          statusColor,
-          statusText,
-          details: [
-            { label: 'Hash', value: shortHash },
-            { label: 'Source', value: `${repoName} @ ${commitShort}` },
-            { label: 'Compiler', value: `${scriptData.compilerType} ${scriptData.compilerVersion}${scriptData.env ? ` (env: ${scriptData.env})` : ''}` },
-          ],
-        });
-      } else {
-        // Hash not found
-        svgContent = generateSVG({
-          title: 'Script Not Found',
-          subtitle: 'UPLC Scan',
-          details: [{ label: 'Hash', value: hash.substring(0, 40) + '...' }],
-        });
-      }
+      card = await registryCard(hash);
     } else if (type === 'registry') {
-      // Registry without hash
-      svgContent = generateSVG({
-        title: 'Registry Explorer',
-        subtitle: 'UPLC Scan',
-        details: [
-          { label: '', value: 'Search and explore verified Plutus smart contracts' },
-        ],
-      });
+      card = (
+        <Card
+          title="Registry Explorer"
+          details={[
+            { label: '', value: 'Search and explore verified Plutus smart contracts' },
+          ]}
+        />
+      );
+    } else if (type === 'verify' && txHash) {
+      card = await verifyCard(txHash);
     } else if (type === 'verify') {
-      // Verify page
-      svgContent = generateSVG({
-        title: 'Smart Contract Verification',
-        subtitle: 'UPLC Scan',
-        details: [
-          { label: '', value: 'Verify Plutus smart contracts from source code' },
-        ],
-      });
+      card = (
+        <Card
+          title="Smart Contract Verification"
+          details={[
+            { label: '', value: 'Verify Plutus smart contracts from source code' },
+          ]}
+        />
+      );
     } else {
-      // Home page - default
-      svgContent = generateSVG({
-        title: 'UPLC Scan',
-        subtitle: '',
-        details: [
-          { label: '', value: 'Plutus Smart Contract Explorer & Verification Platform' },
-        ],
-      });
+      card = (
+        <Card
+          title="UPLC Link"
+          details={[
+            { label: '', value: 'Plutus Smart Contract Explorer & Verification Platform' },
+          ]}
+        />
+      );
     }
 
-    return new NextResponse(svgContent, {
-      headers: {
-        'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'public, max-age=3600, s-maxage=3600',
-      },
+    return new ImageResponse(card, {
+      width: WIDTH,
+      height: HEIGHT,
+      headers: { 'Cache-Control': CACHE_CONTROL },
     });
   } catch (error) {
     console.error('Error generating OG image:', error);
-
-    // Fallback SVG
-    const fallbackSVG = generateSVG({
-      title: 'UPLC Scan',
-      subtitle: 'Smart Contract Verification',
-      details: [],
-    });
-
-    return new NextResponse(fallbackSVG, {
-      headers: {
-        'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'public, max-age=3600',
-      },
-    });
+    return new ImageResponse(
+      (
+        <Card
+          title="UPLC Link"
+          subtitle="Smart Contract Verification"
+        />
+      ),
+      {
+        width: WIDTH,
+        height: HEIGHT,
+        headers: { 'Cache-Control': CACHE_CONTROL },
+      }
+    );
   }
 }

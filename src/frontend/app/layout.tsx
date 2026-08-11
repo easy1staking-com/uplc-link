@@ -5,6 +5,7 @@ import "./globals.css";
 import { WalletProvider } from "@/lib/cardano/wallet-provider";
 import { WalletConnectButton } from "@/components/wallet/WalletConnectButton";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { SITE_URL } from "@/lib/social-cards";
 
 export const metadata: Metadata = {
   title: {
@@ -16,13 +17,16 @@ export const metadata: Metadata = {
   authors: [{ name: "UPLC Link" }],
   creator: "UPLC Link",
   publisher: "UPLC Link",
-  metadataBase: new URL('https://uplc.link'),
+  // Per-environment: set NEXT_PUBLIC_BASE_URL (e.g. https://preview.uplc.link)
+  // so og:image/og:url resolve to THIS deployment — X requires absolute URLs
+  // and a preview card must not point at prod's registry.
+  metadataBase: new URL(SITE_URL),
 
   // Open Graph
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://uplc.link',
+    url: SITE_URL,
     title: 'UPLC Link - Cardano Smart Contract Verification',
     description: 'Don\'t trust, verify. Build and verify Aiken smart contracts in your browser. Open-source registry for verified Cardano smart contracts.',
     siteName: 'UPLC Link',
@@ -42,7 +46,7 @@ export const metadata: Metadata = {
     title: 'UPLC Link - Cardano Smart Contract Verification',
     description: 'Don\'t trust, verify. Build and verify Aiken smart contracts in your browser.',
     images: ['/api/og?type=home'],
-    creator: '@uplclink',
+    creator: '@cryptojoe101',
   },
 
   // Icons
@@ -60,7 +64,7 @@ export const metadata: Metadata = {
 
   // Canonical URL
   alternates: {
-    canonical: 'https://uplc.link',
+    canonical: SITE_URL,
   },
 
   // Other metadata
