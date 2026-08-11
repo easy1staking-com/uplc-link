@@ -21,9 +21,20 @@
  */
 
 import * as UPLC from "@evolution-sdk/evolution/UPLC";
-import { classifySchema, emptyFormValue } from "../lib/blueprint/schema";
+import {
+  classifySchema,
+  describeSchema,
+  emptyFormValue,
+  EMPTY_FORM_NODE_BUDGET,
+} from "../lib/blueprint/schema";
 import { resolveSchema, refToDefinitionKey } from "../lib/blueprint/resolve";
-import { encodeFormValue, payloadToCborHex, EncodeError } from "../lib/blueprint/encode";
+import {
+  encodeFormValue,
+  payloadToCborHex,
+  hasRawPayload,
+  EncodeError,
+} from "../lib/blueprint/encode";
+import { encodeParameterState } from "../lib/blueprint/param-state";
 import { decodeCborToFormValue } from "../lib/blueprint/decode";
 import { applyPayloadsAndHash, applyPayloadsToScript } from "../lib/blueprint/apply-params";
 import {
@@ -35,6 +46,7 @@ import type {
   BlueprintDefinitions,
   BlueprintSchema,
   FormValue,
+  ParameterState,
 } from "../lib/blueprint/types";
 
 import alphaBlueprint from "./fixtures/blueprint-alpha.json";
@@ -461,6 +473,165 @@ function testEncodeBehaviors() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// review-pass regressions
+// ---------------------------------------------------------------------------
+function countFormNodes(v: FormValue): number {
+  switch (v.kind) {
+    case "list":
+    case "tuple":
+      return 1 + v.items.reduce((n, i) => n + countFormNodes(i), 0);
+    case "map":
+      return (
+        1 +
+        v.entries.reduce(
+          (n, e) => n + countFormNodes(e.key) + countFormNodes(e.value),
+          0
+        )
+      );
+    case "constr":
+      return 1 + v.fields.reduce((n, f) => n + countFormNodes(f), 0);
+    default:
+      return 1;
+  }
+}
+
+function testReviewRegressions() {
+  console.log("\n--- review regressions ---");
+
+  // 1) describeSchema on cyclic list-items definitions must not throw
+  const cyclicDefs: BlueprintDefinitions = {
+    "types/L": { dataType: "list", items: { $ref: "#/definitions/types~1L" } },
+  };
+  let cyclicOk = true;
+  let label = "";
+  try {
+    label = describeSchema({ $ref: "#/definitions/types~1L" }, cyclicDefs);
+    label += " / " + describeSchema(
+      { dataType: "list", items: { $ref: "#/definitions/types~1L" } },
+      cyclicDefs
+    );
+  } catch (e) {
+    cyclicOk = false;
+    label = String(e);
+  }
+  check("describeSchema handles cyclic items without throwing", cyclicOk, label);
+
+  // 2) emptyFormValue on a self-referential product type stays bounded
+  const treeDefs: BlueprintDefinitions = {
+    Int: { dataType: "integer" },
+    Tree: {
+      title: "Tree",
+      anyOf: [
+        {
+          title: "Node",
+          dataType: "constructor",
+          index: 0,
+          fields: [{ $ref: "#/definitions/Tree" }, { $ref: "#/definitions/Tree" }],
+        },
+        {
+          title: "Leaf",
+          dataType: "constructor",
+          index: 1,
+          fields: [{ $ref: "#/definitions/Int" }],
+        },
+      ],
+    },
+  };
+  const tree = emptyFormValue({ $ref: "#/definitions/Tree" }, treeDefs);
+  const nodeCount = countFormNodes(tree);
+  // Budgeted nodes plus their CBOR-paste placeholders on exhausted branches:
+  // O(budget), vs ~2^24 without the guard
+  check(
+    "emptyFormValue on Tree{Node,Leaf} is budget-bounded",
+    nodeCount > 0 && nodeCount <= EMPTY_FORM_NODE_BUDGET * 3,
+    `${nodeCount} nodes`
+  );
+
+  // 3) encodeParameterState must never Data-apply a raw-classified param
+  //    whose CBOR does not decode as the raw constant
+  const noRef = () => undefined;
+  const cborState = (hex: string): ParameterState => ({
+    name: "p",
+    mode: "cbor",
+    formValue: null,
+    cborHex: hex,
+  });
+  const stringSchema: BlueprintSchema = { dataType: "#string" };
+  const refused = encodeParameterState(stringSchema, {}, cborState("d8799fff"), noRef);
+  check(
+    "raw #string with Data-shaped CBOR is refused (no Data fallback)",
+    refused === null,
+    JSON.stringify(refused)
+  );
+
+  const text = encodeParameterState(stringSchema, {}, cborState("6568656c6c6f"), noRef);
+  check(
+    "raw #string round-trips CBOR text",
+    text?.kind === "raw" && text.type === "String" && text.value === "hello",
+    JSON.stringify(text)
+  );
+  const boolTrue = encodeParameterState(
+    { dataType: "#boolean" }, {}, cborState("f5"), noRef
+  );
+  check(
+    "raw #boolean round-trips CBOR true",
+    boolTrue?.kind === "raw" && boolTrue.type === "Bool" && boolTrue.value === true
+  );
+  const unit = encodeParameterState({ dataType: "#unit" }, {}, cborState("f6"), noRef);
+  check(
+    "raw #unit round-trips CBOR null",
+    unit?.kind === "raw" && unit.type === "Unit"
+  );
+  const dataInt = encodeParameterState(
+    { dataType: "integer" }, {}, cborState("182a"), noRef
+  );
+  check(
+    "Data-level CBOR still applies as Data",
+    dataInt?.kind === "data" && dataInt.data === 42n
+  );
+
+  // 4) payloadToCborHex emits faithful CBOR for raw kinds and round-trips
+  //    through decode (Form <-> CBOR mode switch coherence)
+  const stringHex = payloadToCborHex({ kind: "raw", type: "String", value: "hi" });
+  const stringBack = decodeCborToFormValue(stringHex, stringSchema, {});
+  check(
+    "raw String CBOR carrier round-trips (no lossy Data stand-in)",
+    stringHex === "626869" && stringBack?.kind === "text" && stringBack.text === "hi",
+    `${stringHex} -> ${JSON.stringify(stringBack)}`
+  );
+  const boolHex = payloadToCborHex({ kind: "raw", type: "Bool", value: false });
+  const unitHex = payloadToCborHex({ kind: "raw", type: "Unit", value: null });
+  check(
+    "raw Bool/Unit carriers are CBOR simples (not Data constrs)",
+    boolHex === "f4" && unitHex === "f6",
+    `${boolHex} ${unitHex}`
+  );
+
+  // 5) submission gate: raw payloads are flagged
+  const rawPayload = encodeFormValue({ dataType: "#integer" }, {}, {
+    kind: "int",
+    text: "7",
+  });
+  const dataPayload = encodeFormValue({ dataType: "integer" }, {}, {
+    kind: "int",
+    text: "7",
+  });
+  check(
+    "hasRawPayload flags raw params for the registry gate",
+    hasRawPayload([dataPayload, rawPayload]) && !hasRawPayload([dataPayload])
+  );
+
+  // 6) empty UTF-8 bytes input is incomplete, matching empty-hex behavior
+  let emptyUtf8Rejected = false;
+  try {
+    encodeFormValue({ dataType: "bytes" }, {}, { kind: "bytes", mode: "utf8", text: "" });
+  } catch (e) {
+    emptyUtf8Rejected = e instanceof EncodeError;
+  }
+  check("empty UTF-8 bytes input rejected like empty hex", emptyUtf8Rejected);
+}
+
 function main() {
   console.log("=".repeat(80));
   console.log("Blueprint builder tests");
@@ -480,6 +651,7 @@ function main() {
 
   testApply();
   testEncodeBehaviors();
+  testReviewRegressions();
 
   console.log();
   if (failures > 0) {

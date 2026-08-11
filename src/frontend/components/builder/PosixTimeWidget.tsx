@@ -35,7 +35,11 @@ export function PosixTimeWidget({ value, onChange }: PosixTimeWidgetProps) {
           type="datetime-local"
           value={msToLocalInput(text)}
           onChange={(e) => {
-            if (!e.target.value) return;
+            if (!e.target.value) {
+              // Clearing the picker clears the value too
+              onChange({ kind: "int", text: "" });
+              return;
+            }
             const ms = new Date(e.target.value).getTime();
             if (Number.isFinite(ms)) onChange({ kind: "int", text: String(ms) });
           }}

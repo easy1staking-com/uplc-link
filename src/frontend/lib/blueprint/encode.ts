@@ -14,6 +14,7 @@
 
 import * as Data from "@evolution-sdk/evolution/Data";
 import * as Bytes from "@evolution-sdk/evolution/Bytes";
+import * as CBOR from "@evolution-sdk/evolution/CBOR";
 import type * as UPLC from "@evolution-sdk/evolution/UPLC";
 import { BACKEND_CBOR_OPTIONS } from "@/lib/cardano/metadata-encoder";
 import type { BlueprintSchema, BlueprintDefinitions, FormValue } from "./types";
@@ -74,6 +75,9 @@ function bytesValueToHex(
       if (value.text.trim() === "") throw new EncodeError(path, "Value is required");
       return normalizeHexInput(value.text, path);
     case "utf8":
+      // Consistent with hex mode: an untouched empty input is "not provided",
+      // not an intentional empty bytestring (paste CBOR `40` for that).
+      if (value.text === "") throw new EncodeError(path, "Value is required");
       return utf8ToHex(value.text);
     case "ref": {
       if (!value.ref) throw new EncodeError(path, "Select a validator to reference");
@@ -280,14 +284,23 @@ export function encodeFormValue(
   };
 }
 
+/** True when any payload is a raw UPLC constant (not Data-level). */
+export function hasRawPayload(payloads: readonly ParamPayload[]): boolean {
+  return payloads.some((p) => p.kind === "raw");
+}
+
 /**
  * CBOR hex for a payload — used for the live preview and for registry
  * metadata storage, encoded with BACKEND_CBOR_OPTIONS for byte-identity with
  * the backend serializer.
  *
- * Raw constants have no canonical Data representation; primitives are stored
- * best-effort the way `aiken blueprint apply` would accept them (integer/bytes
- * as their plain CBOR encoding).
+ * Raw constants are carried as their FAITHFUL plain-CBOR encodings — integer
+ * (major 0/1), bytes (major 2), text (major 3), true/false/null simples —
+ * the forms `aiken blueprint apply` accepts and decode.ts round-trips.
+ * Text/bool/null are deliberately NOT valid Plutus Data, so they can never
+ * be mistaken for a Data-level parameter; no lossy Data stand-ins are
+ * emitted. (Registry submission is separately gated for raw params — the
+ * on-chain metadata format only carries Data-level parameters.)
  */
 export function payloadToCborHex(payload: ParamPayload): string {
   if (payload.kind === "data") {
@@ -301,13 +314,13 @@ export function payloadToCborHex(payload: ParamPayload): string {
     return Data.toCBORHex(Data.bytearray(Bytes.toHex(value)), BACKEND_CBOR_OPTIONS);
   }
   if (type === "String" && typeof value === "string") {
-    return Data.toCBORHex(Data.bytearray(utf8ToHex(value)), BACKEND_CBOR_OPTIONS);
+    return CBOR.toCBORHex(value);
   }
-  if (type === "Bool") {
-    return Data.toCBORHex(Data.constr(value === true ? 1n : 0n, []), BACKEND_CBOR_OPTIONS);
+  if (type === "Bool" && typeof value === "boolean") {
+    return CBOR.toCBORHex(value);
   }
   if (type === "Unit") {
-    return Data.toCBORHex(Data.constr(0n, []), BACKEND_CBOR_OPTIONS);
+    return CBOR.toCBORHex(null);
   }
   throw new EncodeError("", `Cannot serialize raw constant of type ${JSON.stringify(type)}`);
 }

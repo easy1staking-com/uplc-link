@@ -8,12 +8,8 @@ import { SubmitToRegistry } from "@/components/verification/SubmitToRegistry";
 import { ParamBuilder } from "@/components/builder/ParamBuilder";
 import type { BuilderContext } from "@/components/builder/context";
 import { applyPayloadsAndHash } from "@/lib/blueprint/apply-params";
-import {
-  encodeFormValue,
-  payloadToCborHex,
-  normalizeHexInput,
-  type ParamPayload,
-} from "@/lib/blueprint/encode";
+import { payloadToCborHex, hasRawPayload, type ParamPayload } from "@/lib/blueprint/encode";
+import { encodeParameterState } from "@/lib/blueprint/param-state";
 import { decodeCborToFormValue } from "@/lib/blueprint/decode";
 import { classifySchema, describeSchema, emptyFormValue } from "@/lib/blueprint/schema";
 import type {
@@ -24,39 +20,6 @@ import type {
 import type { VerificationResult, ValidatorParams } from "@/lib/types/verification";
 import { toAikenReleaseTag } from "@/lib/aiken-version";
 import type { VerificationResponseDto } from "@/lib/types/registry";
-import * as Data from "@evolution-sdk/evolution/Data";
-
-/**
- * Encode one parameter's builder state into an applicable payload.
- * Returns null when the parameter has no (complete) value yet.
- * Throws EncodeError on invalid input.
- */
-function encodeParameterState(
-  schema: BlueprintSchema | undefined,
-  definitions: BlueprintDefinitions,
-  state: ParameterState,
-  resolveValidatorRef: (hash: string) => string | undefined
-): ParamPayload | null {
-  if (!schema) {
-    // No schema available — only raw CBOR can be applied
-    if (state.mode !== "cbor" || !state.cborHex.trim()) return null;
-    return { kind: "data", data: Data.fromCBORHex(normalizeHexInput(state.cborHex, state.name)) };
-  }
-
-  if (state.mode === "cbor") {
-    if (!state.cborHex.trim()) return null;
-    // Route through schema decoding so raw (#-typed) parameters become
-    // constant payloads; schema-mismatched CBOR falls back to plain Data.
-    const decoded = decodeCborToFormValue(state.cborHex, schema, definitions);
-    if (decoded) {
-      return encodeFormValue(schema, definitions, decoded, { resolveValidatorRef });
-    }
-    return { kind: "data", data: Data.fromCBORHex(normalizeHexInput(state.cborHex, state.name)) };
-  }
-
-  if (!state.formValue) return null;
-  return encodeFormValue(schema, definitions, state.formValue, { resolveValidatorRef });
-}
 
 function VerifyPageContent() {
   const searchParams = useSearchParams();
@@ -88,6 +51,11 @@ function VerifyPageContent() {
   // Fully-encoded parameter CBOR (raw hash -> hex list), derived alongside
   // calculatedHashes and handed to the registry submission
   const [encodedParams, setEncodedParams] = useState<Record<string, string[]>>({});
+
+  // Raw (unapplied) hashes of validators whose applied parameters include raw
+  // UPLC constants — registry submission is gated for these (the metadata
+  // format cannot express them; the backend would store a wrong final hash)
+  const [rawParamValidators, setRawParamValidators] = useState<string[]>([]);
 
   const definitions: BlueprintDefinitions = verificationResult?.definitions ?? {};
 
@@ -217,6 +185,7 @@ function VerifyPageContent() {
         const defs = verificationResult.definitions ?? {};
         const newCalculatedHashes: Record<string, string> = {};
         const newEncodedParams: Record<string, string[]> = {};
+        const newRawParamValidators = new Set<string>();
 
         for (const result of verificationResult.results) {
           newCalculatedHashes[result.hash] = result.actual;
@@ -237,8 +206,10 @@ function VerifyPageContent() {
             if (!params || params.length === 0) continue;
 
             // Only apply once the user (or deep-link prefill) has provided
-            // values — untouched defaults never silently change the hash
-            if (!params.some(p => p.touched)) continue;
+            // EVERY value — a partially-touched validator must not silently
+            // apply its siblings' encodable defaults (e.g. an empty list).
+            // No-input params (raw #unit) are marked touched at init.
+            if (!params.every(p => p.touched)) continue;
 
             try {
               const payloads: ParamPayload[] = [];
@@ -268,6 +239,14 @@ function VerifyPageContent() {
 
               if (!complete) continue;
 
+              // Raw UPLC constant params verify client-side, but the on-chain
+              // registry metadata can only carry Data-level parameters — the
+              // backend would replay them as Data and store a wrong hash.
+              // Track them so registry submission can be gated.
+              if (hasRawPayload(payloads)) {
+                newRawParamValidators.add(result.hash);
+              }
+
               const { hash } = applyPayloadsAndHash(result.compiledCode, payloads, result.plutusVersion);
               newEncodedParams[result.hash] = hexes;
 
@@ -283,6 +262,7 @@ function VerifyPageContent() {
 
         setCalculatedHashes(newCalculatedHashes);
         setEncodedParams(newEncodedParams);
+        setRawParamValidators([...newRawParamValidators]);
       } catch (error) {
         console.error("Failed to calculate hashes:", error);
       }
@@ -305,7 +285,9 @@ function VerifyPageContent() {
       mode: formCapable ? "form" : "cbor",
       formValue: formCapable ? emptyFormValue(schema, defs) : null,
       cborHex: "",
-      touched: false,
+      // Raw #unit has no input to interact with — count it as provided so
+      // the every-param-touched guard doesn't block it forever
+      touched: classified.kind === "raw" && classified.raw === "unit",
     };
   };
 
@@ -344,6 +326,12 @@ function VerifyPageContent() {
           // Legacy registry entries stored some bytes parameters as bare hex
           // (no CBOR envelope) — prefill the bytes form directly when the
           // schema is bytes-shaped and the value is plain hex.
+          //
+          // Known ambiguity (accepted): a bare-hex value that happens to be
+          // self-delimiting CBOR of the wrong shape (e.g. "182a" on a bytes
+          // schema) prefills as literal bytes 0x18 0x2a rather than failing.
+          // The stored value was malformed either way, the prefilled hash
+          // then visibly mismatches, and the user can correct it in the form.
           const classified = classifySchema(param.schema, defs);
           if (
             classified.kind === "bytes" &&
@@ -853,8 +841,32 @@ function VerifyPageContent() {
                 const actualHashes = verificationResult.results.map(r => calculatedHashes[r.hash] || r.actual);
                 const allMatch = actualHashes.length === parsedExpectedHashes.length &&
                                  actualHashes.every(h => parsedExpectedHashes.includes(h));
+                if (!allMatch) return null;
 
-                return allMatch ? (
+                // Registry gate: the on-chain metadata format (label 1984)
+                // carries parameters as Plutus Data only. Raw UPLC constant
+                // params applied here client-side cannot be expressed, and
+                // the backend would replay them Data-level and store a wrong
+                // final hash as COMPLETE. Block submission, keep verification.
+                if (rawParamValidators.length > 0) {
+                  const names = verificationResult.results
+                    .filter(r => rawParamValidators.includes(r.hash))
+                    .map(r => r.validator);
+                  return (
+                    <div className="mt-6 p-4 bg-zinc-900 border border-orange-800 rounded">
+                      <h3 className="font-bold text-lg mb-2">Registry Submission Unavailable</h3>
+                      <p className="text-sm text-gray-300">
+                        {names.join(", ")} use{names.length === 1 ? "s" : ""} raw UPLC
+                        constant parameters (<code className="font-mono">#</code>-typed),
+                        which the on-chain registry format cannot yet express. The
+                        hash verification above is still valid — only registry
+                        submission is disabled.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
                   <SubmitToRegistry
                     verificationData={{
                       repoUrl,
@@ -868,7 +880,7 @@ function VerifyPageContent() {
                       calculatedHashes,
                     }}
                   />
-                ) : null;
+                );
               })()}
 
               {verificationResult.buildLog && (

@@ -174,54 +174,86 @@ export function classifySchema(
   return { kind: "opaque", reason: "Unrecognized schema shape", refName, title };
 }
 
-/** Human-readable type label (replacement for the old getParameterType). */
+/**
+ * Human-readable type label (replacement for the old getParameterType).
+ *
+ * Depth-guarded, and the fallback label is computed LAZILY: a named ($ref'd)
+ * node must never recurse into its items — cyclic definitions like
+ * `L = list<L>` would otherwise overflow the stack while rendering.
+ */
 export function describeSchema(
   schema: BlueprintSchema,
-  definitions: BlueprintDefinitions
+  definitions: BlueprintDefinitions,
+  depth = 0
 ): string {
-  const classified = classifySchema(schema, definitions);
-  const named = (fallback: string) => {
+  if (depth > MAX_SCHEMA_DEPTH) return "…";
+  const classified = classifySchema(schema, definitions, depth);
+  const named = (fallback: () => string) => {
     if (classified.refName) {
       const parts = classified.refName.split("/");
-      return parts[parts.length - 1] || fallback;
+      return parts[parts.length - 1] || fallback();
     }
-    return classified.title ?? fallback;
+    return classified.title ?? fallback();
   };
   switch (classified.kind) {
     case "integer":
-      return named("Int");
+      return named(() => "Int");
     case "bytes":
-      return named("ByteArray");
+      return named(() => "ByteArray");
     case "list":
-      return named(`List<${describeSchema(classified.items, definitions)}>`);
+      return named(
+        () => `List<${describeSchema(classified.items, definitions, depth + 1)}>`
+      );
     case "tuple":
       return named(
-        `(${classified.items.map((i) => describeSchema(i, definitions)).join(", ")})`
+        () =>
+          `(${classified.items
+            .map((i) => describeSchema(i, definitions, depth + 1))
+            .join(", ")})`
       );
     case "map":
-      return named("Map");
+      return named(() => "Map");
     case "constructor":
-      return named(
-        classified.variants.length > 1 ? "union" : classified.variants[0].title ?? "constructor"
+      return named(() =>
+        classified.variants.length > 1
+          ? "union"
+          : classified.variants[0].title ?? "constructor"
       );
     case "raw":
       return `#${classified.raw}`;
     case "opaque":
-      return named("Data");
+      return named(() => "Data");
     case "unsupported":
-      return named("unsupported");
+      return named(() => "unsupported");
   }
 }
 
 /**
+ * Shared node budget for default-value construction. The depth guard alone
+ * bounds depth, not breadth: a self-referential product type like
+ * `Tree { Node(Tree, Tree), Leaf(Int) }` would build ~2^MAX_SCHEMA_DEPTH
+ * nodes. Exhausting the budget degrades the remaining subtree to CBOR-paste.
+ */
+interface NodeBudget {
+  remaining: number;
+}
+
+export const EMPTY_FORM_NODE_BUDGET = 4000;
+
+/**
  * Build a sensible default FormValue for a schema (constructor -> first
  * variant with recursive defaults, list/map -> empty, scalars -> empty text).
+ * Bounded both by depth and by a total node budget (see NodeBudget).
  */
 export function emptyFormValue(
   schema: BlueprintSchema,
   definitions: BlueprintDefinitions,
-  depth = 0
+  depth = 0,
+  budget: NodeBudget = { remaining: EMPTY_FORM_NODE_BUDGET }
 ): FormValue {
+  if (budget.remaining <= 0) return { kind: "cbor", hex: "" };
+  budget.remaining--;
+
   const classified = classifySchema(schema, definitions, depth);
   switch (classified.kind) {
     case "integer":
@@ -233,7 +265,9 @@ export function emptyFormValue(
     case "tuple":
       return {
         kind: "tuple",
-        items: classified.items.map((i) => emptyFormValue(i, definitions, depth + 1)),
+        items: classified.items.map((i) =>
+          emptyFormValue(i, definitions, depth + 1, budget)
+        ),
       };
     case "map":
       return { kind: "map", entries: [] };
@@ -242,7 +276,7 @@ export function emptyFormValue(
         kind: "constr",
         variant: 0,
         fields: classified.variants[0].fields.map((f) =>
-          emptyFormValue(f.schema, definitions, depth + 1)
+          emptyFormValue(f.schema, definitions, depth + 1, budget)
         ),
       };
     case "raw":

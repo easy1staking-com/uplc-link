@@ -9,6 +9,7 @@
 
 import * as Data from "@evolution-sdk/evolution/Data";
 import * as Bytes from "@evolution-sdk/evolution/Bytes";
+import * as CBOR from "@evolution-sdk/evolution/CBOR";
 import type { BlueprintSchema, BlueprintDefinitions, FormValue } from "./types";
 import { classifySchema, MAX_SCHEMA_DEPTH } from "./schema";
 import { normalizeHexInput } from "./encode";
@@ -117,29 +118,61 @@ export function decodeCborToFormValue(
   }
   if (hex === "") return null;
 
+  const classified = classifySchema(schema, definitions);
+
+  // Raw constants: stored/pasted CBOR carries the underlying primitive value.
+  // string/boolean/unit are carried as plain CBOR text / true/false / null
+  // (see payloadToCborHex) — those are not valid Plutus Data, so parse them
+  // at the CBOR level before attempting a Data decode.
+  if (classified.kind === "raw") {
+    switch (classified.raw) {
+      case "string":
+      case "boolean":
+      case "unit": {
+        let value: CBOR.CBOR;
+        try {
+          value = CBOR.fromCBORHex(hex);
+        } catch {
+          return null;
+        }
+        if (classified.raw === "string" && typeof value === "string") {
+          return { kind: "text", text: value };
+        }
+        if (classified.raw === "boolean" && typeof value === "boolean") {
+          return { kind: "bool", value };
+        }
+        if (classified.raw === "unit" && value === null) {
+          return { kind: "unit" };
+        }
+        return null;
+      }
+      case "integer":
+      case "bytes":
+      case "data": {
+        let data: Data.Data;
+        try {
+          data = Data.fromCBORHex(hex);
+        } catch {
+          return null;
+        }
+        if (classified.raw === "integer") {
+          return typeof data === "bigint" ? { kind: "int", text: data.toString() } : null;
+        }
+        if (classified.raw === "bytes") {
+          return data instanceof Uint8Array
+            ? { kind: "bytes", mode: "hex", text: Bytes.toHex(data) }
+            : null;
+        }
+        return { kind: "cbor", hex };
+      }
+    }
+  }
+
   let data: Data.Data;
   try {
     data = Data.fromCBORHex(hex);
   } catch {
     return null;
-  }
-
-  const classified = classifySchema(schema, definitions);
-
-  // Raw constants: stored/pasted CBOR carries the underlying primitive value.
-  if (classified.kind === "raw") {
-    switch (classified.raw) {
-      case "integer":
-        return typeof data === "bigint" ? { kind: "int", text: data.toString() } : null;
-      case "bytes":
-        return data instanceof Uint8Array
-          ? { kind: "bytes", mode: "hex", text: Bytes.toHex(data) }
-          : null;
-      case "data":
-        return { kind: "cbor", hex };
-      default:
-        return null;
-    }
   }
 
   return dataToFormValue(data, schema, definitions, 0);

@@ -14,7 +14,7 @@
  * schema; a "manual" toggle always falls back to the generic form.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { BlueprintSchema, FormValue } from "@/lib/blueprint/types";
 import {
   classifySchema,
@@ -107,9 +107,17 @@ export function SchemaForm({ schema, value, onChange, ctx, depth = 0 }: SchemaFo
   const classified = classifySchema(schema, ctx.definitions, depth);
 
   // Self-heal when the stored value does not match the schema shape.
-  const v = matchesShape(value, classified)
-    ? value
-    : emptyFormValue(schema, ctx.definitions, depth);
+  const needsHeal = !matchesShape(value, classified);
+  const v = needsHeal ? emptyFormValue(schema, ctx.definitions, depth) : value;
+
+  // Propagate the healed value to the parent (in an effect, not during
+  // render) so the encoder never keeps working off the stale mismatched one.
+  useEffect(() => {
+    if (needsHeal) {
+      onChange(emptyFormValue(schema, ctx.definitions, depth));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsHeal]);
 
   if (depth > MAX_SCHEMA_DEPTH) {
     return (
