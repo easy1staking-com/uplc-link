@@ -340,6 +340,29 @@ function VerifyPageContent() {
               touched: true,
             };
           }
+
+          // Legacy registry entries stored some bytes parameters as bare hex
+          // (no CBOR envelope) — prefill the bytes form directly when the
+          // schema is bytes-shaped and the value is plain hex.
+          const classified = classifySchema(param.schema, defs);
+          if (
+            classified.kind === "bytes" &&
+            /^[0-9a-fA-F]+$/.test(storedValue) &&
+            storedValue.length % 2 === 0
+          ) {
+            return {
+              name,
+              mode: "form" as const,
+              formValue: {
+                kind: "bytes" as const,
+                mode: "hex" as const,
+                text: storedValue.toLowerCase(),
+              },
+              cborHex: "",
+              touched: true,
+            };
+          }
+
           return {
             name,
             mode: "cbor" as const,
