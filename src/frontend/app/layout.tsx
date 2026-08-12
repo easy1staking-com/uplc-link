@@ -5,6 +5,7 @@ import "./globals.css";
 import { WalletProvider } from "@/lib/cardano/wallet-provider";
 import { WalletConnectButton } from "@/components/wallet/WalletConnectButton";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { MobileNav } from "@/components/MobileNav";
 import { SITE_URL } from "@/lib/social-cards";
 
 export const metadata: Metadata = {
@@ -133,8 +134,8 @@ export default function RootLayout({
       <body className="antialiased bg-black text-white">
         <WalletProvider>
           <header className="border-b border-zinc-800 bg-zinc-950">
-            <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-8">
+            <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-8 self-start md:self-auto">
                 <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity group">
                   <div className="w-8 h-8 relative">
                     <Image
@@ -147,27 +148,32 @@ export default function RootLayout({
                   </div>
                   <span className="text-xl font-bold">UPLC Link</span>
                 </Link>
-                <NetworkBadge />
-                <nav className="flex gap-6">
-                  <Link href="/verify" className="text-sm text-gray-400 hover:text-white transition-colors">
-                    Verify
-                  </Link>
-                  <Link href="/registry" className="text-sm text-gray-400 hover:text-white transition-colors">
-                    Registry
-                  </Link>
-                  <Link href="/docs" className="text-sm text-gray-400 hover:text-white transition-colors">
-                    Docs
-                  </Link>
-                </nav>
+                <div className="hidden md:flex items-center gap-8">
+                  <NetworkBadge />
+                  <nav className="flex gap-6">
+                    <Link href="/verify" className="text-sm text-gray-400 hover:text-white transition-colors">
+                      Verify
+                    </Link>
+                    <Link href="/registry" className="text-sm text-gray-400 hover:text-white transition-colors">
+                      Registry
+                    </Link>
+                    <Link href="/docs" className="text-sm text-gray-400 hover:text-white transition-colors">
+                      Docs
+                    </Link>
+                  </nav>
+                </div>
               </div>
-              <WalletConnectButton />
+              <div className="flex items-start md:items-center gap-2 md:gap-8">
+                <WalletConnectButton />
+                <MobileNav />
+              </div>
             </div>
           </header>
           {children}
 
           {/* Footer */}
           <footer className="border-t border-zinc-800 bg-zinc-950 mt-16">
-            <div className="max-w-6xl mx-auto px-8 py-12">
+            <div className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* About */}
                 <div>
