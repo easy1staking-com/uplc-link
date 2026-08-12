@@ -502,7 +502,7 @@ function VerifyPageContent() {
           <p className="font-bold">Failed to load verification data</p>
           <p className="mt-2">{deepLinkError}</p>
           <p className="mt-4 text-sm">
-            Transaction hash: <code className="font-mono">{txHash}</code>
+            Transaction hash: <code className="font-mono break-all">{txHash}</code>
           </p>
         </div>
         <Link
@@ -521,7 +521,7 @@ function VerifyPageContent() {
         href="https://github.com/easy1staking-com/plutus-scan"
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed top-0 right-0 z-50"
+        className="hidden md:block fixed top-0 right-0 z-50"
       >
         <div className="bg-gradient-to-br from-blue-500 to-blue-700 text-white px-16 py-2 rotate-45 translate-x-12 translate-y-6 shadow-lg hover:from-blue-600 hover:to-blue-800 transition-colors">
           <span className="text-sm font-semibold">Fork me on GitHub</span>
@@ -692,7 +692,7 @@ function VerifyPageContent() {
                         {unmatchedActual.length > 0 && (
                           <details className="mt-2">
                             <summary className="cursor-pointer font-medium">Unmatched Actual Hashes</summary>
-                            <ul className="ml-4 mt-1 font-mono text-xs">
+                            <ul className="ml-4 mt-1 font-mono text-xs break-all">
                               {unmatchedActual.map((hash, idx) => (
                                 <li key={idx}>- {hash}</li>
                               ))}
@@ -703,7 +703,7 @@ function VerifyPageContent() {
                         {unmatchedExpected.length > 0 && (
                           <details className="mt-2">
                             <summary className="cursor-pointer font-medium">Unmatched Expected Hashes</summary>
-                            <ul className="ml-4 mt-1 font-mono text-xs">
+                            <ul className="ml-4 mt-1 font-mono text-xs break-all">
                               {unmatchedExpected.map((hash, idx) => (
                                 <li key={idx}>- {hash}</li>
                               ))}
@@ -785,8 +785,17 @@ function VerifyPageContent() {
                             </span>
                           </div>
                           <div>
-                            <span className="text-gray-400">Actual:</span> {actualHash}
+                            <span className="text-gray-400">Actual:</span>{" "}
+                            <span className="break-all">{actualHash}</span>
                             {isParameterized && <span className="text-green-400 ml-2">Live</span>}
+                            <button
+                              type="button"
+                              onClick={() => navigator.clipboard.writeText(actualHash)}
+                              aria-label="Copy hash"
+                              className="md:hidden ml-2 text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded"
+                            >
+                              Copy
+                            </button>
                           </div>
                           {matches === null && (
                             <div className="text-yellow-400 text-xs mt-2">

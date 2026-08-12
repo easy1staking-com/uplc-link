@@ -65,7 +65,7 @@ export function ParamBuilder({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-y-1">
         <label className="block text-sm font-medium">
           {title}
           <span className="text-gray-500 ml-2 text-xs">

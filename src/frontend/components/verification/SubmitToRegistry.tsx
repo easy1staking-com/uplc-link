@@ -191,7 +191,7 @@ export function SubmitToRegistry({ verificationData }: SubmitToRegistryProps) {
 
                       <div>
                         <h3 className="text-sm font-medium text-gray-400 mb-1">Commit</h3>
-                        <p className="text-sm font-mono">{verificationData.commitHash}</p>
+                        <p className="text-sm font-mono break-all">{verificationData.commitHash}</p>
                       </div>
 
                       <div>
