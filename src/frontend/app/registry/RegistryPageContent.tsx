@@ -192,7 +192,9 @@ function RegistryPageContentInner() {
                     {script.moduleName}.{script.validatorName}
                   </h3>
                   <div className="flex items-center gap-2 text-sm text-gray-400 flex-wrap">
-                    <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.purpose}</span>
+                    {script.purposes && script.purposes.length > 0 && (
+                      <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.purposes.join(', ')}</span>
+                    )}
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.plutusVersion}</span>
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.compilerType} {script.compilerVersion}</span>
                     {script.env && (

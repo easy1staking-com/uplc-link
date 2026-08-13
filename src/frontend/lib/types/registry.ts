@@ -7,7 +7,7 @@ export interface ScriptResponseDto {
   scriptName: string;
   moduleName: string;
   validatorName: string;
-  purpose: string;
+  purposes: string[];
   rawHash: string;
   finalHash: string | null;
   plutusVersion: string;

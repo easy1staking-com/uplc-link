@@ -85,7 +85,11 @@ export async function generateMetadata({
     ? 'Partially parameterized'
     : 'Not parameterized';
 
-  const description = `Verified ${script.purpose} script: ${scriptName} | ${script.plutusVersion} | ${statusText} | Compiled with ${scriptData.compilerType} ${scriptData.compilerVersion}${scriptData.env ? ` (env: ${scriptData.env})` : ''}`;
+  // Build the purpose label from the purposes array; degrade gracefully
+  // (no "undefined", no double space) when a script has no purposes.
+  const purposesLabel = script.purposes && script.purposes.length > 0 ? script.purposes.join(', ') : '';
+
+  const description = `Verified ${purposesLabel ? `${purposesLabel} ` : ''}script: ${scriptName} | ${script.plutusVersion} | ${statusText} | Compiled with ${scriptData.compilerType} ${scriptData.compilerVersion}${scriptData.env ? ` (env: ${scriptData.env})` : ''}`;
 
   // Extract repository name from source URL for a cleaner display
   const repoName = scriptData.sourceUrl.split('/').slice(-2).join('/');
@@ -112,7 +116,7 @@ export async function generateMetadata({
     twitter: {
       card: 'summary_large_image',
       title: `${scriptName}`,
-      description: `Verified ${script.purpose} | ${script.plutusVersion} | ${statusText} | Source: ${repoName}@${commitShort}`,
+      description: `Verified${purposesLabel ? ` ${purposesLabel}` : ''} | ${script.plutusVersion} | ${statusText} | Source: ${repoName}@${commitShort}`,
       images: [`/api/og?type=registry&hash=${encodeURIComponent(hash)}`],
     },
   };

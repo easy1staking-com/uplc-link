@@ -19,7 +19,7 @@ const SCRIPT_HASH_PATTERN = /^[0-9a-fA-F]{56}$/;
 export interface CardScript {
   moduleName: string;
   validatorName: string;
-  purpose: string;
+  purposes: string[];
   plutusVersion: string;
   parameterizationStatus: 'NONE_REQUIRED' | 'PARTIAL' | 'COMPLETE';
   rawHash: string;
