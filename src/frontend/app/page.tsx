@@ -53,7 +53,7 @@ export default function Home() {
         href="https://github.com/easy1staking-com/plutus-scan"
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed top-0 right-0 z-50"
+        className="hidden md:block fixed top-0 right-0 z-50"
       >
         <div className="bg-gradient-to-br from-blue-500 to-blue-700 text-white px-16 py-2 rotate-45 translate-x-12 translate-y-6 shadow-lg hover:from-blue-600 hover:to-blue-800 transition-colors">
           <span className="text-sm font-semibold">Fork me on GitHub</span>
@@ -191,7 +191,7 @@ export default function Home() {
           <p className="text-gray-400 text-sm mb-4">
             Check if a smart contract is verified by entering its address or script hash.
           </p>
-          <form onSubmit={handleQuickLookup} className="flex gap-2">
+          <form onSubmit={handleQuickLookup} className="flex flex-col gap-2 md:flex-row">
             <div className="flex-1 relative">
               <input
                 type="text"

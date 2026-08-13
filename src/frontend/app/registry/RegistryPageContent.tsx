@@ -144,7 +144,7 @@ function RegistryPageContentInner() {
         </div>
 
         {/* Search Input */}
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 md:flex-row">
           <input
             type="text"
             value={searchQuery}
@@ -186,12 +186,12 @@ function RegistryPageContentInner() {
               className="p-6 bg-zinc-900 border border-zinc-800 rounded hover:border-zinc-700 transition-colors"
             >
               {/* Script Header */}
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col items-start gap-3 md:flex-row md:justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-medium mb-1">
                     {script.moduleName}.{script.validatorName}
                   </h3>
-                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <div className="flex items-center gap-2 text-sm text-gray-400 flex-wrap">
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.purpose}</span>
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.plutusVersion}</span>
                     <span className="px-2 py-1 bg-zinc-800 rounded text-xs">{script.compilerType} {script.compilerVersion}</span>
@@ -280,7 +280,7 @@ function RegistryPageContentInner() {
                   <span className="text-sm text-gray-500">Raw Hash:</span>
                   <div className="mt-1 px-3 py-2 bg-zinc-950 rounded font-mono text-sm break-all flex items-center justify-between gap-2">
                     <span>{script.rawHash}</span>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 shrink-0">
                       <button
                         onClick={() => navigator.clipboard.writeText(script.rawHash)}
                         className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
@@ -307,7 +307,7 @@ function RegistryPageContentInner() {
                     <span className="text-sm text-gray-500">Final Hash (parameterized):</span>
                     <div className="mt-1 px-3 py-2 bg-zinc-950 rounded font-mono text-sm break-all flex items-center justify-between gap-2">
                       <span>{script.finalHash}</span>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 shrink-0">
                         <button
                           onClick={() => navigator.clipboard.writeText(script.finalHash!)}
                           className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
