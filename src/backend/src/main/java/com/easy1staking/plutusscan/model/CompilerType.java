@@ -8,8 +8,9 @@ import java.util.stream.Stream;
 @Getter
 public enum CompilerType {
 
-    AIKEN(0), HELIOS(1), SCALUS(2), OPSHIN(3), PLUTARCH(4), PLINTH(5), PLUTUS(6),
-    PLUTS(7);
+    // Constructor ids are normative: they are the CIP-0171 constructor table.
+    // Anything outside this set is an unrecognized constructor and is dropped.
+    AIKEN(0), PLUTARCH(1), PLUTUSTX(2), SCALUS(3), PLUTS(4), OPSHIN(5);
 
     private final int compileId;
 
