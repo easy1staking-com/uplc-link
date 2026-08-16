@@ -253,7 +253,8 @@ env = bytes .size (0..64)    ; UTF-8; empty = built without an environment flag;
 parameters = { * script_hash => parameter_list }
 script_hash = bytes .size 28
 parameter_list = [ * bytes ]  ; each element is a bytestring wrapping the CBOR
-                              ; encoding of one parameter
+                              ; encoding of one parameter (a plutus_data value —
+                              ; the production below describes the wrapped content)
 ```
 
 ### 7b. Productions retained as published
