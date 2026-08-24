@@ -18,7 +18,7 @@ import type {
   ParameterState,
 } from "@/lib/blueprint/types";
 import type { VerificationResult, ValidatorParams } from "@/lib/types/verification";
-import { toAikenReleaseTag } from "@/lib/aiken-version";
+import { toAikenReleaseTag, fetchAikenReleaseTags, FALLBACK_AIKEN_VERSIONS } from "@/lib/aiken-version";
 import type { VerificationResponseDto } from "@/lib/types/registry";
 
 function VerifyPageContent() {
@@ -64,11 +64,7 @@ function VerifyPageContent() {
     const fetchVersions = async () => {
       setLoadingVersions(true);
       try {
-        const response = await fetch("https://api.github.com/repos/aiken-lang/aiken/releases?per_page=50");
-        const releases = await response.json();
-        const versions = releases
-          .map((release: any) => release.tag_name)
-          .filter((tag: string) => tag.startsWith("v"));
+        const versions = await fetchAikenReleaseTags();
         setAikenVersions(versions);
         // Functional update: the deep-link prefill may have already set a
         // version by the time this fetch resolves — never clobber it.
@@ -77,8 +73,8 @@ function VerifyPageContent() {
         }
       } catch (error) {
         console.error("Failed to fetch Aiken versions:", error);
-        setAikenVersions(["v1.1.22", "v1.1.21", "v1.1.19", "v1.1.17", "v1.1.0", "v1.0.29"]);
-        setAikenVersion(prev => prev || "v1.1.22");
+        setAikenVersions([...FALLBACK_AIKEN_VERSIONS]);
+        setAikenVersion(prev => prev || FALLBACK_AIKEN_VERSIONS[0]);
       } finally {
         setLoadingVersions(false);
       }
