@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx __tests__/metadata-encoding.test.ts && tsx __tests__/script-hash.test.ts && tsx __tests__/blueprint-builder.test.ts"
+    "test": "tsx __tests__/metadata-encoding.test.ts && tsx __tests__/script-hash.test.ts && tsx __tests__/blueprint-builder.test.ts && tsx __tests__/aiken-version.test.ts"
   },
   "dependencies": {
     "@evolution-sdk/evolution": "^0.5.11",
