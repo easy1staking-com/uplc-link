@@ -35,7 +35,13 @@ dependencies {
 
 	implementation('com.bloxbean.cardano:aiken-java-binding:0.1.0')
 
-	implementation 'io.micrometer:micrometer-registry-prometheus:latest.release'
+	// No version: let the Spring Boot BOM manage it alongside io.prometheus.
+	// A `latest.release` dynamic version here silently drifted onto the milestone
+	// 1.18.0-M1 (Gradle reports org.gradle.status=release for a -M1 on Maven
+	// Central), which requests prometheus-metrics-exposition-formats 1.8.0 while
+	// the BOM held that at 1.2.1 — NoSuchMethodError on ExpositionFormats.init
+	// at startup. The BOM pairs 1.13.4 with 1.2.1 by design.
+	implementation 'io.micrometer:micrometer-registry-prometheus'
 
 	// OpenAPI/Swagger documentation
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
