@@ -35,7 +35,7 @@ dependencies {
 
 	implementation('com.bloxbean.cardano:aiken-java-binding:0.1.0')
 
-	implementation 'io.micrometer:micrometer-registry-prometheus:latest.release'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
 
 	// OpenAPI/Swagger documentation
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
