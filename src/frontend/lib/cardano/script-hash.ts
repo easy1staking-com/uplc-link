@@ -8,6 +8,7 @@
  */
 
 import * as UPLC from '@evolution-sdk/evolution/UPLC';
+import * as CBOR from '@evolution-sdk/evolution/CBOR';
 import * as Data from '@evolution-sdk/evolution/Data';
 import * as Bytes from '@evolution-sdk/evolution/Bytes';
 import * as ScriptHash from '@evolution-sdk/evolution/ScriptHash';
@@ -53,6 +54,6 @@ export function applyParamsAndHash(
   version: PlutusVersion
 ): { scriptCbor: string; hash: string } {
   const params = paramsCborHex.map(hex => Data.fromCBORHex(hex));
-  const scriptCbor = UPLC.applyParamsToScript(compiledCode, params);
+  const scriptCbor = UPLC.applyParamsToScript(compiledCode, params, CBOR.PLUTUS_DATA_OPTIONS);
   return { scriptCbor, hash: resolveScriptHash(scriptCbor, version) };
 }
