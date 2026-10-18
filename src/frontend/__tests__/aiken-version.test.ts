@@ -103,6 +103,21 @@ async function testAikenVersions(): Promise<boolean> {
     'fallback: alpha versions keep their -alpha suffix',
     FALLBACK_AIKEN_VERSIONS.filter(v => v.startsWith('v1.0.')).every(v => v.endsWith('-alpha'))
   ) && ok;
+  ok = check(
+    'fallback: newest entry (the offline default selection) is v1.1.24',
+    FALLBACK_AIKEN_VERSIONS[0] === 'v1.1.24'
+  ) && ok;
+  ok = check(
+    'fallback: includes v1.1.23',
+    FALLBACK_AIKEN_VERSIONS.includes('v1.1.23')
+  ) && ok;
+  // v1.1.18 and v1.1.20 are tags with no GitHub release: `aikup install`
+  // fails for them (PLAN.md T-211).
+  ok = check(
+    'fallback: no tag-only v1.1.18 or v1.1.20',
+    !FALLBACK_AIKEN_VERSIONS.includes('v1.1.18' as never) &&
+      !FALLBACK_AIKEN_VERSIONS.includes('v1.1.20' as never)
+  ) && ok;
 
   return ok;
 }

@@ -40,6 +40,8 @@ export function toAikenReleaseTag(version: string): string | null {
  * confirm it. Re-check it if you edit it.
  */
 export const FALLBACK_AIKEN_VERSIONS = [
+  'v1.1.24',
+  'v1.1.23',
   'v1.1.22',
   'v1.1.21',
   'v1.1.19',
