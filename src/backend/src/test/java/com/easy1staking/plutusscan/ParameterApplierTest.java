@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -138,5 +139,26 @@ public class ParameterApplierTest {
     public void refusesNonHex() {
         assertThrows(RuntimeException.class,
                 () -> ParameterApplier.applyParams(fe.get("compiledCode").asText(), List.of("zz")));
+    }
+
+    // 1002 levels is the shallowest list nesting past borer's own 1000-level limit (Borer$Error$Overflow).
+    // A 64 MiB thread stack keeps the JVM stack from overflowing first, whatever the JIT state.
+    @Test
+    public void refusesParamOverDecoderNestingLimit() throws Throwable {
+        String param = "9f".repeat(1002) + "ff".repeat(1002);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread thread = new Thread(null, () -> {
+            try {
+                assertThrows(IllegalArgumentException.class,
+                        () -> ParameterApplier.applyParams(fe.get("compiledCode").asText(), List.of(param)));
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        }, "large-stack", 64L * 1024 * 1024);
+        thread.start();
+        thread.join();
+        if (failure.get() != null) {
+            throw failure.get();
+        }
     }
 }

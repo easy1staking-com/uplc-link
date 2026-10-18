@@ -38,7 +38,9 @@ import java.util.List;
  * inside the prefix that is reused unchanged.
  *
  * Parameters come from attacker-controlled 1984 metadata: every refusal is a
- * RuntimeException, never an Error.
+ * RuntimeException, never an Error. A parameter nested past the CBOR decoder's own limit
+ * fails with a decoder exception, or with a StackOverflowError when the stack runs out
+ * first (JIT-dependent); both are refused as IllegalArgumentException.
  */
 public final class ParameterApplier {
 
@@ -68,9 +70,17 @@ public final class ParameterApplier {
 
             List<byte[]> rawParams = new ArrayList<>();
             List<byte[]> canonicalParams = new ArrayList<>();
-            for (String hex : paramsCborHex) {
-                byte[] raw = HexUtil.decodeHexString(hex);
-                Data data = Data.fromCbor(raw);
+            for (int i = 0; i < paramsCborHex.size(); i++) {
+                byte[] raw;
+                Data data;
+                try {
+                    raw = HexUtil.decodeHexString(paramsCborHex.get(i));
+                    data = Data.fromCbor(raw);
+                } catch (IllegalArgumentException e) {
+                    throw e;
+                } catch (RuntimeException e) {
+                    throw new IllegalArgumentException("Invalid parameter CBOR at index " + i, e);
+                }
                 rawParams.add(raw);
                 canonicalParams.add(Data.toCbor(data));
                 program = program.applyArg(data);
