@@ -1,13 +1,8 @@
 package com.easy1staking.plutusscan.service;
 
-import com.bloxbean.cardano.aiken.AikenScriptUtil;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.util.HexUtil;
 import com.easy1staking.plutusscan.domain.entity.ScriptEntity;
 import com.easy1staking.plutusscan.domain.entity.VerificationRequestEntity;
 import com.easy1staking.plutusscan.domain.enums.ParameterizationStatus;
@@ -16,6 +11,7 @@ import com.easy1staking.plutusscan.domain.repository.VerificationRequestReposito
 import com.easy1staking.plutusscan.dto.ParameterSchema;
 import com.easy1staking.plutusscan.dto.ParsedValidator;
 import com.easy1staking.plutusscan.dto.response.ScriptListResponseDto;
+import com.easy1staking.plutusscan.util.ParameterApplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -136,18 +132,7 @@ public class ScriptService {
 
             log.info("applying: {}", String.join(",", params));
 
-            var parameters = params.stream().map(HexUtil::decodeHexString).map(foo -> {
-                try {
-                    return PlutusData.deserialize(foo);
-                } catch (CborDeserializationException e) {
-                    throw new RuntimeException(e);
-                }
-            }).toList().toArray(new PlutusData[0]);
-            var parameterisedScript = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(
-                    AikenScriptUtil.applyParamToScript(ListPlutusData.of(parameters), compiledCode),
-                    plutusVersion
-            );
-            var hash =parameterisedScript.getPolicyId();
+            var hash = ParameterApplier.applyParamsAndHash(compiledCode, params, plutusVersion);
             log.info("hash = {}", hash);
             return hash;
         } catch (Exception e) {
