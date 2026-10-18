@@ -12,7 +12,13 @@ import * as Bytes from "@evolution-sdk/evolution/Bytes";
 import * as CBOR from "@evolution-sdk/evolution/CBOR";
 import type { BlueprintSchema, BlueprintDefinitions, FormValue } from "./types";
 import { classifySchema, MAX_SCHEMA_DEPTH } from "./schema";
-import { normalizeHexInput } from "./encode";
+import { normalizeHexInput, EMPTY_BYTES_HEX_LITERAL } from "./encode";
+
+/** Empty bytestrings decode to the explicit literal: "" would read as "not provided". */
+function bytesFormValue(data: Uint8Array): FormValue {
+  const hex = Bytes.toHex(data);
+  return { kind: "bytes", mode: "hex", text: hex === "" ? EMPTY_BYTES_HEX_LITERAL : hex };
+}
 
 function dataToFormValue(
   data: Data.Data,
@@ -28,7 +34,7 @@ function dataToFormValue(
       return typeof data === "bigint" ? { kind: "int", text: data.toString() } : null;
     case "bytes":
       return data instanceof Uint8Array
-        ? { kind: "bytes", mode: "hex", text: Bytes.toHex(data) }
+        ? bytesFormValue(data)
         : null;
     case "list": {
       if (!Array.isArray(data)) return null;
@@ -160,7 +166,7 @@ export function decodeCborToFormValue(
         }
         if (classified.raw === "bytes") {
           return data instanceof Uint8Array
-            ? { kind: "bytes", mode: "hex", text: Bytes.toHex(data) }
+            ? bytesFormValue(data)
             : null;
         }
         return { kind: "cbor", hex };

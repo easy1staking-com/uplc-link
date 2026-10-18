@@ -9,6 +9,7 @@
 import * as EvoAddress from "@evolution-sdk/evolution/Address";
 import * as Bytes from "@evolution-sdk/evolution/Bytes";
 import type { FormValue } from "@/lib/blueprint/types";
+import { EMPTY_BYTES_HEX_LITERAL } from "@/lib/blueprint/encode";
 import type { BuilderContext } from "./context";
 
 type BytesValue = Extract<FormValue, { kind: "bytes" }>;
@@ -133,7 +134,7 @@ export function BytesInput({
               value.mode === "hex"
                 ? expectedBytes
                   ? `${expectedBytes}-byte hash as hex...`
-                  : "Hex bytes (e.g. abc123... or 0xabc123...)"
+                  : `Hex bytes (e.g. abc123... or 0xabc123...; ${EMPTY_BYTES_HEX_LITERAL} for empty)`
                 : "Text (encoded as UTF-8 bytes)"
             }
             className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm font-mono focus:outline-none focus:border-zinc-600"
@@ -161,6 +162,9 @@ export function BytesInput({
                   </span>
                 )}
               </p>
+            )}
+            {value.mode === "hex" && !error && !hex && value.text.trim() !== "" && (
+              <p className="text-gray-500">0 bytes (empty bytestring)</p>
             )}
             {hexPreview !== null && (
               <p className="text-gray-500">
