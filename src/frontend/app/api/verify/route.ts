@@ -5,15 +5,14 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
 import { toAikenReleaseTag } from "@/lib/aiken-version";
+import { createAikenToolchain } from "@/lib/aiken-toolchain";
 import type { BlueprintDefinitions, BlueprintPreamble, BlueprintSchema } from "@/lib/blueprint/types";
 
 // No shell: arguments are passed as arrays, never interpolated into a command line
 const execFileAsync = promisify(execFile);
 
-const AIKEN_ENV = {
-  ...process.env,
-  PATH: `${process.env.HOME}/.aiken/bin:${process.env.PATH}`,
-};
+// aikup install + aiken build, serialised per process (see lib/aiken-toolchain.ts)
+const aikenToolchain = createAikenToolchain();
 
 const COMMIT_HASH_PATTERN = /^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$/; // SHA-1 or SHA-256
 // Aiken env module name (snake_case module identifier); also keeps the value
@@ -160,30 +159,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Install specific Aiken version
-    console.log(`Installing Aiken ${releaseTag}...`);
-    try {
-      await execFileAsync("aikup", ["install", releaseTag], { env: AIKEN_ENV, ...EXEC_LIMITS });
-    } catch (error) {
-      throw new Error(`Failed to install Aiken version ${releaseTag}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-
-    // Build the contract with installed Aiken version
+    // Install the requested Aiken version and build with it (one pair at a time per process)
     const buildArgs = env ? ["build", "--env", env] : ["build"];
-    console.log(`Building contract with Aiken ${releaseTag} in ${workDir}${env ? ` (env: ${env})` : ""}...`);
-    let buildOutput: string;
-    try {
-      const { stdout, stderr } = await execFileAsync("aiken", buildArgs, {
-        cwd: workDir,
-        env: AIKEN_ENV,
-        ...EXEC_LIMITS,
-      });
-      buildOutput = stdout + stderr;
-      console.log(`Build output:\n${buildOutput}`);
-    } catch (error: any) {
-      buildOutput = String(error.stdout ?? "") + String(error.stderr ?? "");
-      throw new Error(`Build failed: ${buildOutput}`);
-    }
+    const buildOutput = await aikenToolchain.installAndBuild(releaseTag, buildArgs, workDir);
 
     // Extract hashes from build artifacts (grouped by module.name)
     const { results: buildResults, definitions, preamble } = await extractBuildHashes(workDir, repoDir);

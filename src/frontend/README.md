@@ -309,6 +309,21 @@ NEXT_PUBLIC_API_URL=https://api.uplc.link
 NEXT_PUBLIC_NETWORK=mainnet
 ```
 
+### Aiken Builds: One Process per Aiken Home
+
+`/api/verify` serialises `aikup install` + `aiken build` within one Node process
+(`lib/aiken-toolchain.ts`): each build runs with the compiler its own request
+installed, and the throughput is one build at a time per process. `git clone`
+runs outside the lock.
+
+The guarantee holds only for ONE Node process per writable Aiken home
+(`$HOME/.aiken`). Separate processes sharing a home — e.g. two replicas on one
+volume — are not protected, because aikup re-points `~/.aiken/bin/aiken` on
+every install, so one process's install can switch the compiler under another
+process's build. Separate containers with isolated homes are fine. In
+`docker-compose.yml` this means the `aiken-cache` volume must not be shared
+with another container or process.
+
 ### Build Optimization
 
 The frontend uses Next.js standalone output mode for minimal Docker images:
