@@ -41,10 +41,16 @@ import java.util.List;
  * RuntimeException, never an Error. A parameter nested past the CBOR decoder's own limit
  * fails with a decoder exception, or with a StackOverflowError when the stack runs out
  * first (JIT-dependent); both are refused as IllegalArgumentException.
+ *
+ * Why the declared-length pre-scan: borer pre-sizes arrays and strings from the length a
+ * CBOR header declares, so a few bytes declaring 2^31 items throw an OutOfMemoryError, an
+ * Error no caller handles. Each parameter's headers are therefore walked first, and any
+ * length larger than the bytes actually left is refused before the decoder runs.
  */
 public final class ParameterApplier {
 
     private static final int FLAT_CHUNK_MAX = 255;
+    private static final int MAX_INDEFINITE_DEPTH = 10_000;
 
     private ParameterApplier() {
     }
@@ -75,6 +81,7 @@ public final class ParameterApplier {
                 Data data;
                 try {
                     raw = HexUtil.decodeHexString(paramsCborHex.get(i));
+                    requireBoundedCbor(raw);
                     data = Data.fromCbor(raw);
                 } catch (IllegalArgumentException e) {
                     throw e;
@@ -137,6 +144,96 @@ public final class ParameterApplier {
         }
         out.write(0x01);
         return out.toByteArray();
+    }
+
+    /**
+     * Walks the headers of the first CBOR item in {@code raw} iteratively, refusing any
+     * declared length the remaining bytes cannot hold. Definite children are counted in
+     * {@code pending}; each open indefinite container saves its parent's count on a stack.
+     * Validates headers only: the decoder still judges the item as Data.
+     */
+    private static void requireBoundedCbor(byte[] raw) {
+        long pending = 1;
+        long[] enclosing = new long[16];
+        int depth = 0;
+        int pos = 0;
+        while (pending > 0 || depth > 0) {
+            int offset = pos;
+            if (pos >= raw.length) {
+                throw cborRefusal(offset, "truncated");
+            }
+            int initial = raw[pos++] & 0xff;
+            if (initial == 0xff) {
+                if (depth == 0 || pending > 0) {
+                    throw cborRefusal(offset, "unexpected break");
+                }
+                pending = enclosing[--depth];
+                continue;
+            }
+            if (pending > 0) {
+                pending--;
+            }
+            int major = initial >>> 5;
+            int additionalInfo = initial & 0x1f;
+            if (additionalInfo >= 28 && additionalInfo <= 30) {
+                throw cborRefusal(offset, "reserved additional info " + additionalInfo);
+            }
+            if (additionalInfo == 31) {
+                if (major < 2 || major > 5) {
+                    throw cborRefusal(offset, "indefinite length on major type " + major);
+                }
+                if (depth == MAX_INDEFINITE_DEPTH) {
+                    throw cborRefusal(offset, "indefinite nesting deeper than " + MAX_INDEFINITE_DEPTH);
+                }
+                if (depth == enclosing.length) {
+                    enclosing = Arrays.copyOf(enclosing, depth * 2);
+                }
+                enclosing[depth++] = pending;
+                pending = 0;
+                continue;
+            }
+            long argument = additionalInfo;
+            if (additionalInfo >= 24) {
+                int width = 1 << (additionalInfo - 24);
+                if (width > raw.length - pos) {
+                    throw cborRefusal(offset, "truncated");
+                }
+                argument = 0;
+                for (int b = 0; b < width; b++) {
+                    argument = (argument << 8) | (raw[pos++] & 0xff);
+                }
+            }
+            if (major < 2 || major > 5) {
+                if (major == 6) {
+                    pending++;
+                }
+                continue;
+            }
+            if (argument < 0) {
+                throw cborRefusal(offset, "declared length is 2^63 or more");
+            }
+            int remaining = raw.length - pos;
+            if (major <= 3) {
+                if (Long.compareUnsigned(argument, remaining) > 0) {
+                    throw cborRefusal(offset, "declared length " + Long.toUnsignedString(argument)
+                            + " exceeds the " + remaining + " remaining bytes");
+                }
+                pos += (int) argument;
+            } else {
+                // every child takes at least one byte; a map has two per entry. The first
+                // comparison bounds argument before doubling it can overflow.
+                long children = major == 5 ? 2 * argument : argument;
+                if (Long.compareUnsigned(argument, remaining) > 0 || children > remaining) {
+                    throw cborRefusal(offset, "declared length " + Long.toUnsignedString(argument)
+                            + (major == 5 ? " (map entries)" : "") + " exceeds the " + remaining + " remaining bytes");
+                }
+                pending += children;
+            }
+        }
+    }
+
+    private static IllegalArgumentException cborRefusal(int offset, String reason) {
+        return new IllegalArgumentException("Parameter CBOR at offset " + offset + ": " + reason);
     }
 
     /**

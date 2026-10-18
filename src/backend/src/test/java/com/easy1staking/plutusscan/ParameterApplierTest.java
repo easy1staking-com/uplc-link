@@ -18,9 +18,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Parameter application against external oracles (aiken blueprint apply, scalus npm).
@@ -131,13 +135,13 @@ public class ParameterApplierTest {
 
     @Test
     public void refusesTrailingByte() {
-        assertThrows(RuntimeException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> ParameterApplier.applyParams(fe.get("compiledCode").asText(), List.of("01ff")));
     }
 
     @Test
     public void refusesNonHex() {
-        assertThrows(RuntimeException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> ParameterApplier.applyParams(fe.get("compiledCode").asText(), List.of("zz")));
     }
 
@@ -160,5 +164,75 @@ public class ParameterApplierTest {
         if (failure.get() != null) {
             throw failure.get();
         }
+    }
+
+    // Declared lengths borer would pre-size an allocation from (OutOfMemoryError without the pre-scan)
+    @Test
+    public void refusesParamWithOversizedDefiniteLength() {
+        assertRefused("9a7fffffff01", "exceeds");           // array of 2^31-1 items
+        assertRefused("9a1000000001", "exceeds");
+        assertRefused("d8799a7fffffff01", "exceeds");       // inside a constr tag
+        assertRefused("9f9a7fffffff01ff", "exceeds");       // inside an indefinite list
+        assertRefused("5a7fffffff00", "exceeds");           // bytestring of 2^31-1 bytes
+        assertRefused("bb00000000ffffffff", "exceeds");     // map of 2^32-1 pairs
+        assertRefused("bb00000000000000020101", "exceeds"); // 2 pairs need 4 items, 2 bytes remain
+        assertRefused("9b8000000000000000", "2^63");        // array of 2^63 items
+        // an integer's argument is a value, not a length
+        assertDoesNotThrow(() -> ParameterApplier.applyParams(fe.get("compiledCode").asText(), List.of("1bffffffffffffffff")));
+        assertDoesNotThrow(() -> ParameterApplier.applyParams(fe.get("compiledCode").asText(), List.of("3bffffffffffffffff")));
+    }
+
+    @Test
+    public void refusesTruncatedOrReservedHeader() {
+        assertRefused("9a00", "truncated");
+        assertRefused("1c", "reserved");
+        assertRefused("98", "truncated");
+    }
+
+    @Test
+    public void refusesMisplacedIndefiniteOrBreak() {
+        assertRefused("1f", "indefinite length on major type 0");
+        assertRefused("ff", "unexpected break");
+        assertRefused("8201ff", "unexpected break");    // break inside a definite list
+    }
+
+    // 1000 levels stay within borer's nesting limit, so only the stack running out can refuse it.
+    // At 256 KiB the program itself decodes and a 10-level param applies; at 128 KiB decoding the
+    // program alone overflows, whatever the param.
+    @Test
+    public void stackOverflowIsConvertedDeterministically() throws Throwable {
+        String code = fe.get("compiledCode").asText();
+        // initialise the decoder classes on the default stack, not inside the overflowing thread
+        ParameterApplier.applyParams(code, List.of("9f".repeat(10) + "ff".repeat(10)));
+        Throwable shallow = applyOnSmallStack(code, "9f".repeat(10) + "ff".repeat(10));
+        if (shallow != null) {
+            throw shallow;
+        }
+        Throwable t = applyOnSmallStack(code, "9f".repeat(1000) + "ff".repeat(1000));
+        assertNotNull(t, "1000-level param applied on a 256 KiB stack");
+        if (t.getClass() != IllegalArgumentException.class) {
+            throw t;
+        }
+        assertInstanceOf(StackOverflowError.class, t.getCause());
+    }
+
+    private static Throwable applyOnSmallStack(String code, String param) throws InterruptedException {
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        Thread thread = new Thread(null, () -> {
+            try {
+                ParameterApplier.applyParams(code, List.of(param));
+            } catch (Throwable t) {
+                thrown.set(t);
+            }
+        }, "small-stack", 256L * 1024);
+        thread.start();
+        thread.join();
+        return thrown.get();
+    }
+
+    private static void assertRefused(String param, String reason) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ParameterApplier.applyParams(fe.get("compiledCode").asText(), List.of(param)), param);
+        assertTrue(e.getMessage().contains(reason), () -> param + ": " + e.getMessage());
     }
 }
