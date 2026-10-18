@@ -2,18 +2,22 @@
  * Apply mixed parameter lists (Data-level + raw UPLC constants) to a
  * compiled script and hash the result.
  *
- * Data-only lists go through `UPLC.applyParamsToScript` (Evolution's default
- * Aiken-compatible CBOR encoding). Raw constants are applied by building the
- * application terms directly:
+ * Data-only lists go through `UPLC.applyParamsToScript`. Raw constants are
+ * applied by building the application terms directly:
  *   UPLC.fromCborHexToProgram -> UPLC.applyTerm(body, UPLC.constantTerm(...))
  *   -> UPLC.toFlatHex -> UPLC.applyDoubleCborEncoding
  *
- * API names verified against @evolution-sdk/evolution 0.5.11 (dist/UPLC.d.ts):
+ * Both paths pass `CBOR.PLUTUS_DATA_OPTIONS` explicitly rather than relying on
+ * the library default: node layout (indefinite lists/constr fields, definite
+ * maps), which matches `aiken blueprint apply`.
+ *
+ * API names verified against @evolution-sdk/evolution 0.6.0 (dist/UPLC.d.ts):
  * constantTerm type tags are capitalized ("Integer", "ByteString", "String",
  * "Unit", "Bool", "Data").
  */
 
 import * as UPLC from "@evolution-sdk/evolution/UPLC";
+import * as CBOR from "@evolution-sdk/evolution/CBOR";
 import { resolveScriptHash, type PlutusVersion } from "@/lib/cardano/script-hash";
 import type { ParamPayload } from "./encode";
 
@@ -26,10 +30,7 @@ export function applyPayloadsToScript(
   params: readonly ParamPayload[]
 ): string {
   if (params.every((p) => p.kind === "data")) {
-    return UPLC.applyParamsToScript(
-      compiledCode,
-      params.map((p) => p.data)
-    );
+    return UPLC.applyParamsToScript(compiledCode, params.map((p) => p.data), CBOR.PLUTUS_DATA_OPTIONS);
   }
 
   // Mixed / raw constants: build the application terms manually.
@@ -38,7 +39,7 @@ export function applyPayloadsToScript(
   for (const param of params) {
     const argument =
       param.kind === "data"
-        ? UPLC.dataConstant(param.data)
+        ? UPLC.dataConstant(param.data, CBOR.PLUTUS_DATA_OPTIONS)
         : UPLC.constantTerm(param.type, param.value);
     body = UPLC.applyTerm(body, argument);
   }

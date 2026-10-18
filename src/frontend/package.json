@@ -10,7 +10,7 @@
     "test": "tsx __tests__/metadata-encoding.test.ts && tsx __tests__/script-hash.test.ts && tsx __tests__/blueprint-builder.test.ts && tsx __tests__/aiken-version.test.ts"
   },
   "dependencies": {
-    "@evolution-sdk/evolution": "^0.5.11",
+    "@evolution-sdk/evolution": "^0.6.0",
     "next": "^15.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
