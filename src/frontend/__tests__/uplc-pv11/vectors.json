@@ -1,0 +1,280 @@
+{
+ "builtins": [
+  {
+   "id": 87,
+   "name": "expModInteger",
+   "flat": "0101007ae1",
+   "cbor": "450101007ae1",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 88,
+   "name": "dropList",
+   "flat": "0101007b01",
+   "cbor": "450101007b01",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 89,
+   "name": "lengthOfArray",
+   "flat": "0101007b21",
+   "cbor": "450101007b21",
+   "source": "derived"
+  },
+  {
+   "id": 90,
+   "name": "listToArray",
+   "flat": "0101007b41",
+   "cbor": "450101007b41",
+   "source": "derived"
+  },
+  {
+   "id": 91,
+   "name": "indexArray",
+   "flat": "0101007b61",
+   "cbor": "450101007b61",
+   "source": "derived"
+  },
+  {
+   "id": 92,
+   "name": "bls12_381_G1_multiScalarMul",
+   "flat": "0101007b81",
+   "cbor": "450101007b81",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 93,
+   "name": "bls12_381_G2_multiScalarMul",
+   "flat": "0101007ba1",
+   "cbor": "450101007ba1",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 94,
+   "name": "insertCoin",
+   "flat": "0101007bc1",
+   "cbor": "450101007bc1",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 95,
+   "name": "lookupCoin",
+   "flat": "0101007be1",
+   "cbor": "450101007be1",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 96,
+   "name": "unionValue",
+   "flat": "0101007c01",
+   "cbor": "450101007c01",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 97,
+   "name": "valueContains",
+   "flat": "0101007c21",
+   "cbor": "450101007c21",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 98,
+   "name": "valueData",
+   "flat": "0101007c41",
+   "cbor": "450101007c41",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 99,
+   "name": "unValueData",
+   "flat": "0101007c61",
+   "cbor": "450101007c61",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 100,
+   "name": "scaleValue",
+   "flat": "0101007c81",
+   "cbor": "450101007c81",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "id": 101,
+   "name": "multiIndexArray",
+   "flat": "0101007ca1",
+   "cbor": "450101007ca1",
+   "source": "derived"
+  },
+  {
+   "id": 102,
+   "name": "policies",
+   "flat": "0101007cc1",
+   "cbor": "450101007cc1",
+   "source": "derived"
+  },
+  {
+   "id": 103,
+   "name": "assetCount",
+   "flat": "0101007ce1",
+   "cbor": "450101007ce1",
+   "source": "derived"
+  },
+  {
+   "id": 104,
+   "name": "keepPolicies",
+   "flat": "0101007d01",
+   "cbor": "450101007d01",
+   "source": "derived"
+  },
+  {
+   "id": 105,
+   "name": "dropPolicies",
+   "flat": "0101007d21",
+   "cbor": "450101007d21",
+   "source": "derived"
+  }
+ ],
+ "values_ok": [
+  {
+   "case": "empty",
+   "flat": "0101004e81",
+   "cbor": "450101004e81",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "case": "one",
+   "flat": "0101004ea101aa008101bb000a01",
+   "cbor": "4e0101004ea101aa008101bb000a01",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "case": "multi",
+   "flat": "0101004ea101aa008101bb000a8101cc000d4101dd0081000201",
+   "cbor": "581a0101004ea101aa008101bb000a8101cc000d4101dd0081000201",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "case": "lovelace",
+   "flat": "0101004ea10081008092f40101",
+   "cbor": "4d0101004ea10081008092f40101",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "case": "key32",
+   "flat": "0101004ea12001010101010101010101010101010101010101010101010101010101010101010081200202020202020202020202020202020202020202020202020202020202020202000201",
+   "cbor": "584c0101004ea12001010101010101010101010101010101010101010101010101010101010101010081200202020202020202020202020202020202020202020202020202020202020202000201",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "case": "qmax",
+   "flat": "0101004ea101aa008101bb00feffffffffffffffffffffffffffffffffff0301",
+   "cbor": "58200101004ea101aa008101bb00feffffffffffffffffffffffffffffffffff0301",
+   "source": "aiken-v1.1.24"
+  },
+  {
+   "case": "qmin",
+   "flat": "0101004ea101aa008101bb00ffffffffffffffffffffffffffffffffffff0301",
+   "cbor": "58200101004ea101aa008101bb00ffffffffffffffffffffffffffffffffffff0301",
+   "source": "aiken-v1.1.24"
+  }
+ ],
+ "values_reject": [
+  {
+   "case": "currency_unsorted",
+   "flat": "0101004ea101dd008100024101aa008101bb000a01",
+   "cbor": "550101004ea101dd008100024101aa008101bb000a01",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "currency_duplicate",
+   "flat": "0101004ea101aa008101bb000a4101aa008101cc000201",
+   "cbor": "570101004ea101aa008101bb000a4101aa008101cc000201",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "token_unsorted",
+   "flat": "0101004ea101aa008101cc00028101bb000a01",
+   "cbor": "530101004ea101aa008101cc00028101bb000a01",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "token_duplicate",
+   "flat": "0101004ea101aa008101bb00028101bb000a01",
+   "cbor": "530101004ea101aa008101bb00028101bb000a01",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "empty_inner",
+   "flat": "0101004ea101aa0001",
+   "cbor": "490101004ea101aa0001",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "zero_quantity",
+   "flat": "0101004ea101aa008101bb000001",
+   "cbor": "4e0101004ea101aa008101bb000001",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "currency_33_bytes",
+   "flat": "0101004ea121010101010101010101010101010101010101010101010101010101010101010101008101bb000201",
+   "cbor": "582e0101004ea121010101010101010101010101010101010101010101010101010101010101010101008101bb000201",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "token_33_bytes",
+   "flat": "0101004ea101aa008121020202020202020202020202020202020202020202020202020202020202020202000201",
+   "cbor": "582e0101004ea101aa008121020202020202020202020202020202020202020202020202020202020202020202000201",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "quantity_over_max",
+   "flat": "0101004ea101aa008101bb008080808080808080808080808080808080800401",
+   "cbor": "58200101004ea101aa008101bb008080808080808080808080808080808080800401",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  },
+  {
+   "case": "quantity_under_min",
+   "flat": "0101004ea101aa008101bb008180808080808080808080808080808080800401",
+   "cbor": "58200101004ea101aa008101bb008180808080808080808080808080808080800401",
+   "source": "derived; rejected by aiken v1.1.24 decoder with the matching plutus rule"
+  }
+ ],
+ "apply": [
+  {
+   "case": "lam-addInteger",
+   "script": "450101002701",
+   "params": [
+    "01"
+   ],
+   "expected_inner_flat": "0101003270098101010001"
+  },
+  {
+   "case": "lam-unionValue",
+   "script": "4501010027c1",
+   "params": [
+    "01"
+   ],
+   "expected_inner_flat": "010100327c098101010001"
+  },
+  {
+   "case": "lam-value-const",
+   "script": "4501010024e9",
+   "params": [
+    "01"
+   ],
+   "expected_inner_flat": "010100324e898101010001"
+  },
+  {
+   "case": "real-vault-v1.1.24-stdlib-v4",
+   "script": "59012c0101002229800aba2aba1aba0aab9faab9eaab9dab9a9bae0039bad00248888888896600264653001300a00198051805800cc0280092225980099b8748008c024dd500144cc8a6002601e005300f30100029800acc004cdc3a400001114bd6f7b63044cc038cdd8261014000374c6601c66ec13001014000375001097adef6c604bd6f7b630201448896600264660020026eb0c04cc050c050c050c050c050c050c050c050c040dd5003912cc00400629422b30013371e6eb8c05000403a2946266004004602a002807901244c8cc004004dd61809980a180a18081baa0072259800800c528456600266f84c018dd5980a180a98089baa30140010038a51899801001180a800a01e404914a0806860146ea80088df19ba60018b2010180500098029baa00a8a4d13656400c1",
+   "params": [
+    "581cabababababababababababababababababababababababababababab",
+    "1a001e8480"
+   ],
+   "plutus": "V3",
+   "expected_hash": "8491f6db89a53a1747e8f6fa19e22f827f88d16deeb2b7f8c317218c",
+   "source": "aiken blueprint apply v1.1.24 == scalus npm 1.3.0"
+  }
+ ]
+}

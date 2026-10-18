@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx __tests__/metadata-encoding.test.ts && tsx __tests__/script-hash.test.ts && tsx __tests__/blueprint-builder.test.ts && tsx __tests__/aiken-version.test.ts && tsx __tests__/aiken-toolchain.test.ts"
+    "test": "tsx __tests__/metadata-encoding.test.ts && tsx __tests__/script-hash.test.ts && tsx __tests__/blueprint-builder.test.ts && tsx __tests__/aiken-version.test.ts && tsx __tests__/aiken-toolchain.test.ts && tsx __tests__/uplc-pv11.test.ts"
   },
   "dependencies": {
-    "@evolution-sdk/evolution": "^0.6.0",
+    "@evolution-sdk/evolution": "file:vendor/evolution-sdk-evolution-0.6.0-831e9cfa.tgz",
     "next": "^15.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

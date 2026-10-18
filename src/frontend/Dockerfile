@@ -21,6 +21,9 @@ ENV NEXT_PUBLIC_BASE_URL=$BASE_URL
 
 # Copy package files
 COPY package*.json ./
+# The patched Evolution build is referenced via file: and must exist before
+# npm ci (see vendor/README.md). Temporary until T-408.
+COPY vendor/ ./vendor/
 
 # Install dependencies
 RUN npm ci
