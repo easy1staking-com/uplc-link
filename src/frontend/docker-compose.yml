@@ -37,6 +37,9 @@ services:
           memory: 2G
     # Volume for caching Aiken installations
     volumes:
+      # Must not be shared with another container/process: builds are serialised
+      # only within one Node process, and aikup re-points ~/.aiken/bin/aiken on
+      # every install (see README "Aiken Builds: One Process per Aiken Home").
       - aiken-cache:/root/.aiken
       - build-cache:/tmp
     restart: unless-stopped
