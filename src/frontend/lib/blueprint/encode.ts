@@ -43,6 +43,12 @@ export interface EncodeContext {
   resolveValidatorRef?: (validatorHash: string) => string | undefined;
 }
 
+/**
+ * Explicit empty bytestring in a hex bytes field. An empty text means
+ * "not provided" and is refused; "0x" normalises to zero bytes (CBOR 40).
+ */
+export const EMPTY_BYTES_HEX_LITERAL = "0x";
+
 const HEX_RE = /^[0-9a-fA-F]*$/;
 const INT_RE = /^-?\d+$/;
 
@@ -75,8 +81,9 @@ function bytesValueToHex(
       if (value.text.trim() === "") throw new EncodeError(path, "Value is required");
       return normalizeHexInput(value.text, path);
     case "utf8":
-      // Consistent with hex mode: an untouched empty input is "not provided",
-      // not an intentional empty bytestring (paste CBOR `40` for that).
+      // Consistent with hex mode: an empty input is "not provided", not an
+      // intentional empty bytestring (type `0x` in hex mode, or paste CBOR
+      // `40`, for that).
       if (value.text === "") throw new EncodeError(path, "Value is required");
       return utf8ToHex(value.text);
     case "ref": {
