@@ -1,0 +1,398 @@
+{
+  "preamble": {
+    "title": "uplc-link/aiken-v1-1-24-fixture",
+    "description": "uplc-link test fixture: Aiken v1.1.24 + stdlib v4.0.0, parameterised validator retaining Value builtins",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.24+bacbeb3"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "fixture.vault.spend",
+      "datum": {
+        "title": "_d",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "redeemer": {
+        "title": "_r",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "parameters": [
+        {
+          "title": "owner",
+          "schema": {
+            "$ref": "#/definitions/ByteArray"
+          }
+        },
+        {
+          "title": "threshold",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        },
+        {
+          "title": "pair",
+          "schema": {
+            "$ref": "#/definitions/Pair<Int,ByteArray>"
+          }
+        },
+        {
+          "title": "tuple",
+          "schema": {
+            "$ref": "#/definitions/Tuple<<ByteArray,Int>>"
+          }
+        },
+        {
+          "title": "nested",
+          "schema": {
+            "$ref": "#/definitions/Option<Option<Int>>"
+          }
+        },
+        {
+          "title": "seed",
+          "schema": {
+            "$ref": "#/definitions/cardano~1transaction~1OutputReference"
+          }
+        },
+        {
+          "title": "payee",
+          "schema": {
+            "$ref": "#/definitions/cardano~1address~1Address"
+          }
+        },
+        {
+          "title": "minimum",
+          "schema": {
+            "$ref": "#/definitions/Value"
+          }
+        }
+      ],
+      "compiledCode": "5901b10101002222222229800aba2aba1aab9faab9eaab9dab9a9bae0099bad0089bac0069be300248888888888c96600264653001300c00198061806800cc0300092225980099b8748008c030dd500144c8cc896600264660020026eb0c04cc050c050c050c050c050c050c050c050c044dd5002912cc00400629422b30013371e6eb8c05000403e2946266004004602a0028081013456600330013375e00402f4a14a280722b30013371066e00cdc01bad300f009375a60246026016b30013370e900018079baa0188992cc004cdc3a400060206ea800626eb4c04cc044dd5000c52002403c602460206ea806229000201c00c8acc006600266e3cdd718080049bae301200ba50a514039159800cc004cdc7a44101000000da50a51403913233001001375860266028602860226ea8014896600200314a1159800992cc004cdd7980a98099baa001019899be137c6602a602c60266ea80040362941011180a000c528c4cc008008c05400501020268a50403914a08072294100e4528201c8a504038602000260206022002601a6ea800a2c8058601800260106ea803229344d9590061919bb0300a001300a300b00137580221",
+      "hash": "ec2aa501a9b803e7dcd428be4b404fcf4f82bc07c7b24682b1535a76"
+    },
+    {
+      "title": "fixture.vault.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "parameters": [
+        {
+          "title": "owner",
+          "schema": {
+            "$ref": "#/definitions/ByteArray"
+          }
+        },
+        {
+          "title": "threshold",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        },
+        {
+          "title": "pair",
+          "schema": {
+            "$ref": "#/definitions/Pair<Int,ByteArray>"
+          }
+        },
+        {
+          "title": "tuple",
+          "schema": {
+            "$ref": "#/definitions/Tuple<<ByteArray,Int>>"
+          }
+        },
+        {
+          "title": "nested",
+          "schema": {
+            "$ref": "#/definitions/Option<Option<Int>>"
+          }
+        },
+        {
+          "title": "seed",
+          "schema": {
+            "$ref": "#/definitions/cardano~1transaction~1OutputReference"
+          }
+        },
+        {
+          "title": "payee",
+          "schema": {
+            "$ref": "#/definitions/cardano~1address~1Address"
+          }
+        },
+        {
+          "title": "minimum",
+          "schema": {
+            "$ref": "#/definitions/Value"
+          }
+        }
+      ],
+      "compiledCode": "5901b10101002222222229800aba2aba1aab9faab9eaab9dab9a9bae0099bad0089bac0069be300248888888888c96600264653001300c00198061806800cc0300092225980099b8748008c030dd500144c8cc896600264660020026eb0c04cc050c050c050c050c050c050c050c050c044dd5002912cc00400629422b30013371e6eb8c05000403e2946266004004602a0028081013456600330013375e00402f4a14a280722b30013371066e00cdc01bad300f009375a60246026016b30013370e900018079baa0188992cc004cdc3a400060206ea800626eb4c04cc044dd5000c52002403c602460206ea806229000201c00c8acc006600266e3cdd718080049bae301200ba50a514039159800cc004cdc7a44101000000da50a51403913233001001375860266028602860226ea8014896600200314a1159800992cc004cdd7980a98099baa001019899be137c6602a602c60266ea80040362941011180a000c528c4cc008008c05400501020268a50403914a08072294100e4528201c8a504038602000260206022002601a6ea800a2c8058601800260106ea803229344d9590061919bb0300a001300a300b00137580221",
+      "hash": "ec2aa501a9b803e7dcd428be4b404fcf4f82bc07c7b24682b1535a76"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Option<Int>": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "Option<Option<Int>>": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/Option<Int>"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "Option<cardano/address/StakeCredential>": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/cardano~1address~1StakeCredential"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "Pair<Int,ByteArray>": {
+      "title": "Pair",
+      "dataType": "list",
+      "items": [
+        {
+          "$ref": "#/definitions/Int"
+        },
+        {
+          "$ref": "#/definitions/ByteArray"
+        }
+      ]
+    },
+    "Tuple<<ByteArray,Int>>": {
+      "title": "Tuple",
+      "dataType": "list",
+      "items": [
+        {
+          "$ref": "#/definitions/ByteArray"
+        },
+        {
+          "$ref": "#/definitions/Int"
+        }
+      ]
+    },
+    "Value": {
+      "title": "Value",
+      "dataType": "map",
+      "keys": {
+        "$ref": "#/definitions/ByteArray"
+      },
+      "values": {
+        "dataType": "map",
+        "keys": {
+          "$ref": "#/definitions/ByteArray"
+        },
+        "values": {
+          "$ref": "#/definitions/Int"
+        }
+      }
+    },
+    "aiken/crypto/ScriptHash": {
+      "title": "ScriptHash",
+      "dataType": "bytes"
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "cardano/address/Address": {
+      "title": "Address",
+      "description": "A Cardano `Address` typically holding one or two credential references.\n\n Note that legacy bootstrap addresses (a.k.a. 'Byron addresses') are\n completely excluded from Plutus contexts. Thus, from an on-chain\n perspective only exists addresses of type 00, 01, ..., 07 as detailed\n in [CIP-0019 :: Shelley Addresses](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0019/#shelley-addresses).",
+      "anyOf": [
+        {
+          "title": "Address",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "payment_credential",
+              "$ref": "#/definitions/cardano~1address~1PaymentCredential"
+            },
+            {
+              "title": "stake_credential",
+              "$ref": "#/definitions/Option<cardano~1address~1StakeCredential>"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/address/Credential": {
+      "title": "Credential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1ScriptHash"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/address/PaymentCredential": {
+      "title": "PaymentCredential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1ScriptHash"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/address/StakeCredential": {
+      "title": "StakeCredential",
+      "description": "Represent a type of object that can be represented either inline (by hash)\n or via a reference (i.e. a pointer to an on-chain location).\n\n This is mainly use for capturing pointers to a stake credential\n registration certificate in the case of so-called pointer addresses.",
+      "anyOf": [
+        {
+          "title": "Inline",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/cardano~1address~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "Pointer",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "slot_number",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "transaction_index",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "certificate_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/transaction/OutputReference": {
+      "title": "OutputReference",
+      "description": "An `OutputReference` is a unique reference to an output on-chain. The `output_index`\n corresponds to the position in the output list of the transaction (identified by its id)\n that produced that output",
+      "anyOf": [
+        {
+          "title": "OutputReference",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "transaction_id",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "output_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

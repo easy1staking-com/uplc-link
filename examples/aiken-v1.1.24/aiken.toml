@@ -1,0 +1,11 @@
+name = "uplc-link/aiken-v1-1-24-fixture"
+version = "0.0.0"
+compiler = "v1.1.24"
+plutus = "v3"
+license = "Apache-2.0"
+description = "uplc-link test fixture: Aiken v1.1.24 + stdlib v4.0.0, parameterised validator retaining Value builtins"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "v4.0.0"
+source = "github"
