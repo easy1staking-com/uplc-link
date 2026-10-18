@@ -1,0 +1,69 @@
+{
+  "compiler": "v1.1.24+bacbeb3",
+  "stdlib": "aiken-lang/stdlib v4.0.0",
+  "validator": "fixture.vault",
+  "parameters": [
+    {
+      "title": "owner",
+      "cbor": "581cabababababababababababababababababababababababababababab"
+    },
+    {
+      "title": "threshold",
+      "cbor": "1a001e8480"
+    },
+    {
+      "title": "pair",
+      "cbor": "9f0142cafeff"
+    },
+    {
+      "title": "tuple",
+      "cbor": "9f42beef02ff"
+    },
+    {
+      "title": "nested",
+      "cbor": "d8799fd8799f07ffff"
+    },
+    {
+      "title": "seed",
+      "cbor": "d8799f5820111111111111111111111111111111111111111111111111111111111111111100ff"
+    },
+    {
+      "title": "payee",
+      "cbor": "d8799fd8799f581ccdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdffd87a80ff"
+    },
+    {
+      "title": "minimum",
+      "cbor": "a140a1401a001e8480"
+    }
+  ],
+  "builds": [
+    {
+      "env": "",
+      "unapplied_hash": "ec2aa501a9b803e7dcd428be4b404fcf4f82bc07c7b24682b1535a76",
+      "applied_hashes": [
+        "acbf991e7ecf859f000b8e10c33066f5cdf8509aaa46a1f335099e36",
+        "a778134f562c371872e476f0c632723e69dd2b0e0ce994f32b14c8d1",
+        "dcdfdb3e1c9b1dc9aac10d97bbc9fd37d8038e3747c218c4c2afb982",
+        "59967713e2bd492a486ee07957b41538b199950642ac7b40c56d6435",
+        "dbda8ba3933a0b2891e30c269ebe8968a09baf7bdaca8a955ffb2fe9",
+        "07b4bb1288513be3a92d7ca2c4859d250eb82156674dd4acd88e20ce",
+        "bde19fbf244a3b85beb56b2b6d7b80d520140f32d533516a1be04adc",
+        "0a0783efef5754f534daeefdd6ed9ed12013569e8f9e24fcf0ecdddd"
+      ]
+    },
+    {
+      "env": "preview",
+      "unapplied_hash": "3d770910e373eeef42473fdfcd433a48da740bf665706e6e38b3ae2e",
+      "applied_hashes": [
+        "b2e207fae2f05bd1e2e7cdb755753981bd6062adad5917c534c6a22d",
+        "1b6b41548bc31598925aa8e7acda0f3321082f4f8109a52de84b1b9a",
+        "3ae71ea3efbc6ba6a62f6b7dded78100f035c834f612fc96f5bc7aad",
+        "65b4b1b2fc22f94d2b687eff02df4a527488c4749d2451665c1cbf08",
+        "12f3bff915c69c10724944a8dda24114d4a51456a78bb433131c0271",
+        "dbfe580b8917acd26feeb89f13d8c1c2196fe5c438b8f91c28957deb",
+        "02ca39ebab24100a3c68ae4214ddfda4f8be0b1c74b978c593f0780c",
+        "27d77faef983ab2fb73c3a7f8658ab480b023c9e5f663a684d54394a"
+      ]
+    }
+  ]
+}
