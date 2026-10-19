@@ -38,6 +38,12 @@ not wired into CI — run them manually as needed.
   against upstream GitHub and the Aiken toolchain. Confirms the mobile
   layout holds up against real (not fixture) verification output.
 
+- **`runtime-fe-leg.ts`** — FE leg of the runtime-image E2E for the Aiken
+  v1.1.24 fixture (run via `tsx`, not Playwright, from `src/frontend`). It is
+  driven by `e2e/runtime/run.sh` at the repo root, which builds both Docker
+  images and starts a disposable stack; see `e2e/runtime/README.md`. Needs no
+  `npm install` in this directory.
+
 ## Install
 
 ```bash
