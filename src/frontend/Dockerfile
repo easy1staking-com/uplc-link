@@ -91,6 +91,7 @@ RUN aikup install v1.1.17 || true
 RUN aikup install v1.1.19 || true
 RUN aikup install v1.1.21 || true
 RUN aikup install v1.1.22 || true
+RUN aikup install v1.1.24 || true
 
 # Set default Aiken version
 # RUN aikup default v1.1.22 || true
