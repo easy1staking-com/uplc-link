@@ -3,7 +3,7 @@
  *
  * Aiken reports its version with build metadata (e.g. "v1.1.21+42babe5" in
  * plutus.json preambles and on-chain verification metadata), but GitHub
- * releases — what aikup installs and what the version dropdown shows — are
+ * releases — what the toolchain installs (lib/aiken-toolchain.ts) and what the version dropdown shows — are
  * tagged without it (e.g. "v1.1.21").
  */
 
@@ -30,9 +30,9 @@ export function toAikenReleaseTag(version: string): string | null {
  * Offline fallback for the version dropdown, used only when the GitHub
  * releases API is unreachable.
  *
- * Every entry MUST be a real aiken-lang/aiken *release* tag: aikup installs
- * from release assets, so an entry with no published release (or a wrong tag
- * spelling) offers a build that fails at `aikup install`. `v1.0.29` was such
+ * Every entry MUST be a real aiken-lang/aiken *release* tag: the toolchain
+ * downloads release assets, so an entry with no published release (or a wrong
+ * tag spelling) offers a build that fails at install (the download 404s). `v1.0.29` was such
  * an entry — the released tag is `v1.0.29-alpha`.
  *
  * This list cannot be verified offline: the shape regex accepts spellings that

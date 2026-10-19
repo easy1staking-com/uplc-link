@@ -173,13 +173,16 @@ public class AikenCompilerService implements CompilerService {
     }
 
     /**
-     * Convert a compiler version to an installable aikup release tag.
+     * Strip build metadata from a compiler version and validate the shape of
+     * the result.
      *
      * Aiken reports its version with build metadata (e.g. "v1.1.21+42babe5",
      * as found in plutus.json preambles and on-chain metadata), but GitHub
-     * releases are tagged without it (e.g. "v1.1.21"). aikup resolves release
-     * tags, so the "+<build>" suffix must be stripped. Also validates the
-     * result so arbitrary metadata content can't reach the shell.
+     * releases are tagged without it (e.g. "v1.1.21"), so the "+<build>" suffix
+     * is stripped. The validation keeps arbitrary metadata content from
+     * reaching the install path, the download URL or the executed binary.
+     * This does not add the leading "v"; {@link AikenReleaseAsset#toCanonicalTag}
+     * does.
      */
     public static String toReleaseTag(String compilerVersion) throws CompilationException {
         String tag = compilerVersion.trim();

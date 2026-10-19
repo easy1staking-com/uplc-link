@@ -55,7 +55,8 @@ public class PlutusJsonParserFactory {
      * the lookup miss on a version that was otherwise fully supported.
      *
      * Reuses AikenCompilerService.toReleaseTag, which already performs exactly
-     * this normalisation for `aikup install` and for ingest validation — the
+     * this normalisation for the Aiken install (via AikenReleaseAsset.toCanonicalTag) and for
+     * ingest validation (RequestValidator) — the
      * bug was that parser selection was the one call site not using it.
      *
      * Anything the canonicaliser rejects is passed through unchanged: null and

@@ -28,7 +28,8 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
 1. Both images build from this checkout: `src/frontend/Dockerfile` and
    `src/backend/Dockerfile` (BE from a staging context holding only the boot jar).
 2. The FE container's `/api/verify` clones the fixture commit from GitHub,
-   installs Aiken v1.1.24 and builds it; the unapplied hash equals the oracle's.
+   builds it with Aiken v1.1.24 (stage 4 `image fe-preinstalled-v1.1.24` checks the
+   FE image's default `aiken`); the unapplied hash equals the oracle's.
 3. The FE's own modules (`payloadToCborHex`, `applyPayloadsAndHash`) apply the
    eight oracle parameters step by step and reach the oracle's hashes.
 4. The label-1984 record is encoded exactly as `SubmitToRegistry` +
@@ -37,8 +38,9 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
 5. The BE image ingests that record through its real path
    (`TxMetadataEventListener` -> `TxMetadataProcessor` ->
    `PlutusScanRequestParser` -> `RequestValidator`).
-6. The BE scheduler rebuilds from GitHub with `AikenCompilerService` (aikup
-   installs v1.1.24 on demand in the BE image) and applies the parameters with
+6. The BE scheduler rebuilds from GitHub with `AikenCompilerService` (`AikenToolchain`
+   downloads v1.1.24 from its GitHub release on demand; the image does not ship
+   it, see `image be-v1.1.24-on-demand`) and applies the parameters with
    `ScriptService` / `ParameterApplier` on Scalus.
 7. The request reads back `VERIFIED`, script `COMPLETE`, with the oracle's final
    hash, directly from the BE and through the FE registry proxy.
@@ -102,9 +104,10 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
 
 ## Running
 
-A first run takes roughly 10-15 minutes (two image builds, two Aiken installs,
-two rebuilds), and `E2E_DEVNET=1` adds about 3 minutes for stage 7 (devnet
-start, two more rebuilds), which exceeds a foreground command limit. Run it in the
+A first run takes roughly 10-15 minutes (two image builds, where the FE build
+preinstalls versions with aikup, one Aiken download in the BE and two rebuilds),
+and `E2E_DEVNET=1` adds about 3 minutes for stage 7 (devnet start, two more
+rebuilds; its second BE downloads Aiken again), which exceeds a foreground command limit. Run it in the
 background and read the log when it finishes:
 
 ```bash
@@ -299,7 +302,10 @@ meant to exercise.
 
 ## GitHub rate limit
 
-`aikup install` and the stdlib fetch call GitHub unauthenticated inside the
-containers. Stage 7 adds about 2 calls per run (the devnet BE's two
-rebuilds). A few runs per hour are fine; if the log shows 403 / "rate limit",
+At run time neither container calls the GitHub API to install Aiken: the FE runs
+the preinstalled binary by path and the BE downloads from `releases/download`.
+A default run left the core `used` count unchanged (measured 2026-10-19). The
+remaining unauthenticated API callers are the `aikup install` preinstalls of an
+uncached FE image build (owned by T-219) and Aiken's stdlib fetch, which was
+uncounted when measured. A few runs per hour are fine; if the log shows 403 / "rate limit",
 check `curl -s https://api.github.com/rate_limit`, wait for the reset and rerun.

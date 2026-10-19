@@ -78,7 +78,7 @@ UPLC Link is a decentralized verification platform for Cardano smart contracts. 
 - **Language:** TypeScript 5
 - **Styling:** TailwindCSS
 - **Wallet:** MeshSDK (@meshsdk/core, @meshsdk/core-csl)
-- **Compilation:** Native Aiken (server-side via aikup)
+- **Compilation:** Native Aiken (server-side, release binary run by absolute path)
 - **Parameterization:** MeshSDK WASM (client-side)
 - **Build:** Webpack with WASM support
 
@@ -155,7 +155,7 @@ const result = await response.json();
 The `/api/verify` route (`app/api/verify/route.ts`):
 1. Creates temporary directory
 2. Clones the repository using git
-3. Installs specified Aiken version using aikup
+3. Runs the specified Aiken version's own binary from `~/.aiken/versions/<tag>/`, downloading it from its GitHub release first if absent
 4. Builds the project with `aiken build`
 5. Extracts validator hashes and parameter schemas from plutus.json
 6. Returns results to client
@@ -426,7 +426,7 @@ User ────▶ Frontend ────▶ Next.js API ────▶ Git Cl
 1. User provides repo URL, commit, Aiken version, expected hashes
 2. Frontend calls `/api/verify` endpoint
 3. **Server:** Clones repository using git
-4. **Server:** Installs Aiken version using aikup
+4. **Server:** Downloads the Aiken release if that version is not yet installed
 5. **Server:** Builds contract with `aiken build`
 6. **Server:** Extracts hashes and parameter schemas from plutus.json
 7. **Server:** Returns results to client
@@ -610,7 +610,7 @@ const { applyParamsToScript } = await import("@meshsdk/core-csl");
 
 - **Temporary directories:** Builds isolated in temp dirs, cleaned after
 - **Process isolation:** Each build runs in separate git clone
-- **Version caching:** aikup caches Aiken binaries per version
+- **Version caching:** Installed versions persist under `~/.aiken/versions/<tag>/` and are reused with no request
 
 ### Backend Performance
 
@@ -667,7 +667,7 @@ List<Script> findByHash(String hash);
 ### Why Server-Side Compilation?
 
 - **Reproducibility:** Native Aiken ensures deterministic builds
-- **Version control:** aikup allows exact version matching
+- **Version control:** Each request runs the exact release tag's own binary by absolute path
 - **Performance:** Native binary faster than WASM
 - **Compatibility:** Full Aiken feature support (not limited by WASM)
 

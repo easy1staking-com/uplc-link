@@ -111,8 +111,8 @@ async function testAikenVersions(): Promise<boolean> {
     'fallback: includes v1.1.23',
     FALLBACK_AIKEN_VERSIONS.includes('v1.1.23')
   ) && ok;
-  // v1.1.18 and v1.1.20 are tags with no GitHub release: `aikup install`
-  // fails for them (PLAN.md T-211).
+  // v1.1.18 and v1.1.20 are tags with no GitHub release: their release
+  // download 404s (PLAN.md T-211).
   ok = check(
     'fallback: no tag-only v1.1.18 or v1.1.20',
     !FALLBACK_AIKEN_VERSIONS.includes('v1.1.18' as never) &&
