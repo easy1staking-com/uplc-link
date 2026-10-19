@@ -51,6 +51,15 @@ not wired into CI — run them manually as needed.
   Playwright 1.62.1 installed once. All other origins are aborted. See
   `e2e/runtime/README.md`.
 
+- **`runtime-devnet-leg.ts`** — devnet leg of the same runtime-image E2E (run
+  via `tsx` from `src/frontend`, like `runtime-fe-leg.ts`). Driven by
+  `E2E_DEVNET=1 bash e2e/runtime/run.sh` at the repo root: it calls the FE's
+  own `buildRegistrySubmissionTx` / `signAndSubmitTx` with a seed wallet (the
+  published yaci-devkit test mnemonic) to sign and submit the label-1984 txs on
+  a disposable local yaci-devkit devnet, behind loopback / project-id /
+  network-magic vetoes, then checks the devnet BE's read-back. Needs no
+  `npm install` in this directory. See `e2e/runtime/README.md`.
+
 ## Install
 
 ```bash
