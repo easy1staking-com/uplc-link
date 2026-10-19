@@ -4,7 +4,10 @@
 # Builds the FE and BE Docker images from this checkout, starts a disposable
 # stack on a private Docker network, and proves clone -> build -> apply ->
 # encode -> ingest -> rebuild -> apply -> read-back for an empty env and for
-# `--env preview`. Nothing is built, signed or submitted on-chain.
+# `--env preview`. Nothing is signed or submitted on-chain unless E2E_DEVNET=1,
+# which adds stage 7 on a disposable local yaci-devkit devnet: the FE's own
+# transaction builder signs and submits both label-1984 records there, and a
+# second BE container ingests them by chain sync.
 #
 # Exit codes: 0 = no FAIL line; 1 = at least one FAIL; 2 = precondition failed
 # (no Docker object has been created).
@@ -15,6 +18,8 @@ E2E_FIXTURE_COMMIT="${E2E_FIXTURE_COMMIT:-f141bf8dfecfbdf832f2f58d0f983f26ef75c8
 E2E_KEEP_IMAGES="${E2E_KEEP_IMAGES:-0}"
 E2E_TIMEOUT_S="${E2E_TIMEOUT_S:-1500}"
 E2E_BROWSER="${E2E_BROWSER:-0}"
+E2E_DEVNET="${E2E_DEVNET:-0}"
+DEVKIT_IMG="bloxbean/yaci-cli:0.12.0@sha256:da19478266ec2ff2c82bf5211ca8a2f5f18692f871d50ebce1c86d9d48e2e38d"
 E2E_WORK_DIR="${E2E_WORK_DIR:-$(mktemp -d)}"
 SOURCE_PATH="examples/aiken-v1.1.24"
 ORACLE_REL="src/frontend/__tests__/fixtures/blueprint-v1124-oracle.json"
@@ -29,6 +34,8 @@ NET="uplc-e2e-$RUN_ID"
 PG="uplc-e2e-$RUN_ID-pg"
 BE="uplc-e2e-$RUN_ID-be"
 FE="uplc-e2e-$RUN_ID-fe"
+DEVKIT="uplc-e2e-$RUN_ID-devkit"
+BEDEV="uplc-e2e-$RUN_ID-bedev"
 BE_IMG="uplc-link-e2e-be:$RUN_ID"
 FE_IMG="uplc-link-e2e-fe:$RUN_ID"
 
@@ -86,6 +93,17 @@ case "$E2E_BROWSER" in
   *) pre_fail "E2E_BROWSER must be 0 or 1, got: $E2E_BROWSER" ;;
 esac
 
+# The devkit image is never pulled by the harness: read-only local inspect only
+case "$E2E_DEVNET" in
+  0) ;;
+  1)
+    if ! docker image inspect "$DEVKIT_IMG" >/dev/null 2>&1; then
+      pre_fail "E2E_DEVNET=1 needs the pinned yaci-devkit image locally: docker pull $DEVKIT_IMG"
+    fi
+    ;;
+  *) pre_fail "E2E_DEVNET must be 0 or 1, got: $E2E_DEVNET" ;;
+esac
+
 if [ "$PRE" -ne 0 ]; then exit 2; fi
 
 # ---------------------------------------------------------------- cleanup
@@ -101,6 +119,12 @@ cleanup() {
       fi
     done
     docker rm -f "$BE" "$FE" "$PG" >/dev/null 2>&1
+    for c in "$DEVKIT" "$BEDEV"; do
+      if docker inspect "$c" >/dev/null 2>&1; then
+        docker logs "$c" >"$WORK/${c##*-}.log" 2>&1
+      fi
+    done
+    docker rm -f "$DEVKIT" "$BEDEV" >/dev/null 2>&1
     docker network rm "$NET" >/dev/null 2>&1
     if [ "$E2E_KEEP_IMAGES" != 1 ]; then
       docker rmi "$BE_IMG" "$FE_IMG" >/dev/null 2>&1
@@ -282,6 +306,132 @@ if [ "$E2E_BROWSER" = 1 ]; then
     --commit "$E2E_FIXTURE_COMMIT" --source-path "$SOURCE_PATH" --out-dir "$OUT"
 else
   echo "== stage 6: browser skipped (E2E_BROWSER != 1)"
+fi
+
+# run one devnet-leg mode, echo its output, count its FAIL lines into FAILS
+run_devnet_leg() {
+  local mode="$1"; shift
+  local logf="$WORK/leg-devnet-$mode.log" rc=0 n
+  set +e
+  (cd "$ROOT/src/frontend" && NEXT_PUBLIC_BLOCKFROST_PROJECT_ID=devnet "$TSX" e2e/runtime-devnet-leg.ts "$mode" "$@") 2>&1 | tee "$logf"
+  rc="${PIPESTATUS[0]}"
+  set -e
+  n="$(grep -c '^FAIL ' "$logf" || true)"
+  FAILS=$((FAILS + n))
+  if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then
+    failf "infra devnet-leg-$mode" "leg exited $rc without a FAIL line (see $logf)"
+  fi
+}
+
+# ---------------------------------------------------------------- stage 7
+if [ "$E2E_DEVNET" = 1 ]; then
+  echo "== stage 7: devnet"
+  docker run -d --name "$DEVKIT" --network "$NET" -p 127.0.0.1::8080 \
+    --entrypoint bash "$DEVKIT_IMG" /app/yaci-cli.sh up --enable-yaci-store >/dev/null \
+    || infra_fail devnet-start "could not start the devkit container"
+  DEVKIT_ADDR="$(docker port "$DEVKIT" 8080/tcp 2>/dev/null | sed -n 1p || true)"
+  [ -n "$DEVKIT_ADDR" ] || infra_fail devnet-start "docker port $DEVKIT 8080/tcp printed nothing"
+  DEVKIT_URL="http://$DEVKIT_ADDR/api/v1"
+
+  DEVKIT_UP=0
+  DEVKIT_DEADLINE=$(( $(date +%s) + 300 ))
+  while [ "$(date +%s)" -lt "$DEVKIT_DEADLINE" ]; do
+    if [ "$(curl -s -m 5 -o /dev/null -w '%{http_code}' "$DEVKIT_URL/blocks/latest" 2>/dev/null || true)" = 200 ] \
+        && [ "$(curl -s -m 5 -o /dev/null -w '%{http_code}' "$DEVKIT_URL/epochs/latest/parameters" 2>/dev/null || true)" = 200 ]; then
+      DEVKIT_UP=1; break
+    fi
+    sleep 3
+  done
+  [ "$DEVKIT_UP" = 1 ] || infra_fail devnet-ready "$DEVKIT_URL/blocks/latest and /epochs/latest/parameters did not both return 200 within 300 s (see $WORK/devkit.log)"
+
+  rm -rf "$WORK/devnet-genesis"
+  mkdir -p "$WORK/devnet-genesis"
+  docker cp "$DEVKIT":/clusters/nodes/default/node/genesis/. "$WORK/devnet-genesis/" >"$WORK/devnet-genesis.log" 2>&1 \
+    || infra_fail devnet-genesis "docker cp of the devkit genesis directory failed (see $WORK/devnet-genesis.log)"
+  for g in byron shelley alonzo conway; do
+    [ -f "$WORK/devnet-genesis/$g-genesis.json" ] || infra_fail devnet-genesis "$g-genesis.json missing from the devkit genesis copy"
+  done
+
+  docker exec "$PG" psql -U cardano -d plutus_scan -c 'create database plutus_scan_devnet' >"$WORK/devnet-db.log" 2>&1 \
+    || infra_fail devnet-db "could not create database plutus_scan_devnet (see $WORK/devnet-db.log)"
+
+  # Default entrypoint, no injector: the devnet BE ingests by yaci-store chain sync from genesis
+  docker run -d --name "$BEDEV" --network "$NET" -p 127.0.0.1::8080 \
+    -e "DB_URL=jdbc:postgresql://$PG:5432/plutus_scan_devnet" \
+    -v "$WORK/devnet-genesis:/genesis:ro" "$BE_IMG" \
+    --store.cardano.host="$DEVKIT" --store.cardano.port=3001 \
+    --store.cardano.protocol-magic=42 \
+    --store.cardano.sync-start-slot=0 --store.cardano.sync-start-blockhash= \
+    --store.cardano.byron-genesis-file=/genesis/byron-genesis.json \
+    --store.cardano.shelley-genesis-file=/genesis/shelley-genesis.json \
+    --store.cardano.alonzo-genesis-file=/genesis/alonzo-genesis.json \
+    --store.cardano.conway-genesis-file=/genesis/conway-genesis.json \
+    --verification.poll-interval-ms=5000 >/dev/null \
+    || infra_fail devnet-be-start "could not start the devnet BE container"
+  BEDEV_ADDR="$(docker port "$BEDEV" 8080/tcp 2>/dev/null | sed -n 1p || true)"
+  [ -n "$BEDEV_ADDR" ] || infra_fail devnet-be-start "docker port $BEDEV 8080/tcp printed nothing"
+  BEDEV_URL="http://$BEDEV_ADDR"
+
+  BEDEV_UP=0
+  BEDEV_DEADLINE=$(( $(date +%s) + 180 ))
+  while [ "$(date +%s)" -lt "$BEDEV_DEADLINE" ]; do
+    if grep -q 'Application run failed' <<<"$(docker logs "$BEDEV" 2>&1 || true)"; then
+      infra_fail devnet-be-start "devnet BE reported 'Application run failed' (see $WORK/bedev.log)"
+    fi
+    if [ "$(curl -s -m 5 -o /dev/null -w '%{http_code}' "$BEDEV_URL/healthcheck" 2>/dev/null || true)" = 200 ]; then
+      BEDEV_UP=1; break
+    fi
+    sleep 2
+  done
+  [ "$BEDEV_UP" = 1 ] || infra_fail devnet-be-start "GET $BEDEV_URL/healthcheck never returned 200 within 180 s (see $WORK/bedev.log)"
+
+  echo "== stage 7: devnet leg (submit)"
+  run_devnet_leg submit --devkit-url "$DEVKIT_URL" --oracle "$ORACLE" --out-dir "$OUT"
+
+  echo "== stage 7: devnet leg (check)"
+  ELAPSED=$(( $(date +%s) - START_EPOCH ))
+  REMAINING=$(( E2E_TIMEOUT_S - ELAPSED ))
+  [ "$REMAINING" -ge 120 ] || REMAINING=120
+  run_devnet_leg check --be-url "$BEDEV_URL" --oracle "$ORACLE" --out-dir "$OUT" --timeout-s "$REMAINING"
+
+  # ------------------------------------------------------------ devnet BE log + DB evidence
+  DEVNET_TXS="$OUT/devnet-txs.txt"
+  N_DEVNET_TXS=0
+  if [ -f "$DEVNET_TXS" ]; then N_DEVNET_TXS="$(grep -c . "$DEVNET_TXS" || true)"; fi
+
+  BEDEV_LOG="$(docker logs "$BEDEV" 2>&1 || true)"
+  RECEIVED="$(grep 'Received verification request:' <<<"$BEDEV_LOG" || true)"
+  NI_DETAIL=""
+  if [ "$N_DEVNET_TXS" -ne 2 ]; then NI_DETAIL="devnet-txs.txt has $N_DEVNET_TXS lines (want 2); "; fi
+  # Mounts by destination: the source is the work dir, whose name is the operator's
+  if ! BEDEV_SPEC="$(docker inspect -f '{{json .Path}} {{json .Args}} {{json .Config.Entrypoint}} {{json .Config.Cmd}} {{json .Config.Env}} mounts:{{range .Mounts}} {{.Destination}}{{end}}' "$BEDEV" 2>&1)"; then
+    NI_DETAIL+="docker inspect failed: $BEDEV_SPEC; "
+  fi
+  for tok in MetadataReplayInjector loader.path PropertiesLauncher /e2e; do
+    if grep -qF "$tok" <<<"$BEDEV_SPEC"; then NI_DETAIL+="inspect contains $tok; "; fi
+  done
+  if grep -q 'E2E-INJECTED' <<<"$BEDEV_LOG"; then NI_DETAIL+="log contains E2E-INJECTED; "; fi
+  if [ -f "$DEVNET_TXS" ]; then
+    while read -r h _; do
+      [ -n "$h" ] || continue
+      grep -qF "from tx $h" <<<"$RECEIVED" || NI_DETAIL+="no 'Received verification request: ... from tx $h' log line; "
+    done <"$DEVNET_TXS"
+  fi
+  if [ -z "$NI_DETAIL" ]; then
+    pass "devnet no-injector"
+  else
+    failf "devnet no-injector" "$NI_DETAIL"
+  fi
+
+  GOT_SLOTS="$(docker exec "$PG" psql -U cardano -d plutus_scan_devnet -At -c "select tx_hash || ' ' || slot from verification_request" 2>&1 | LC_ALL=C sort || true)"
+  WANT_SLOTS="$(LC_ALL=C sort "$DEVNET_TXS" 2>/dev/null || true)"
+  if [ "$N_DEVNET_TXS" -eq 2 ] && [ "$GOT_SLOTS" = "$WANT_SLOTS" ]; then
+    pass "devnet ingest-slot"
+  else
+    failf "devnet ingest-slot" "devnet-txs.txt lines=$N_DEVNET_TXS (want 2); verification_request rows: $(tr '\n' ';' <<<"$GOT_SLOTS"); devkit: $(tr '\n' ';' <<<"$WANT_SLOTS")"
+  fi
+else
+  echo "== stage 7: devnet skipped (E2E_DEVNET != 1)"
 fi
 
 finish
