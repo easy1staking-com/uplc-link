@@ -14,6 +14,7 @@ E2E_SOURCE_URL="${E2E_SOURCE_URL:-https://github.com/easy1staking-com/uplc-link}
 E2E_FIXTURE_COMMIT="${E2E_FIXTURE_COMMIT:-f141bf8dfecfbdf832f2f58d0f983f26ef75c899}"
 E2E_KEEP_IMAGES="${E2E_KEEP_IMAGES:-0}"
 E2E_TIMEOUT_S="${E2E_TIMEOUT_S:-1500}"
+E2E_BROWSER="${E2E_BROWSER:-0}"
 E2E_WORK_DIR="${E2E_WORK_DIR:-$(mktemp -d)}"
 SOURCE_PATH="examples/aiken-v1.1.24"
 ORACLE_REL="src/frontend/__tests__/fixtures/blueprint-v1124-oracle.json"
@@ -74,6 +75,16 @@ if ! command -v node >/dev/null 2>&1 || [[ "$(node --version)" != v20* ]]; then 
 TSX="$ROOT/src/frontend/node_modules/.bin/tsx"
 if [ ! -x "$TSX" ]; then pre_fail "$TSX missing (run npm ci in src/frontend)"; fi
 if ! command -v curl >/dev/null 2>&1; then pre_fail "curl not found"; fi
+
+case "$E2E_BROWSER" in
+  0) ;;
+  1)
+    if ! (cd "$ROOT/src/frontend/e2e" && node -e "require('playwright').chromium.launch({headless:true}).then(b=>b.close()).then(()=>process.exit(0),e=>{console.error(e.message);process.exit(1)})") >"$WORK/browser-pre.log" 2>&1; then
+      pre_fail "E2E_BROWSER=1 needs Playwright 1.62.1 and its Chromium: run npm ci in src/frontend/e2e and install Chromium once (see $WORK/browser-pre.log)"
+    fi
+    ;;
+  *) pre_fail "E2E_BROWSER must be 0 or 1, got: $E2E_BROWSER" ;;
+esac
 
 if [ "$PRE" -ne 0 ]; then exit 2; fi
 
@@ -249,6 +260,28 @@ if [ "$GOT_VERSIONS" = "$WANT_VERSIONS" ]; then
   pass "be compiler-version"
 else
   failf "be compiler-version" "plutus_json_cache query printed: $GOT_VERSIONS"
+fi
+
+# run the browser leg, echo its output, count its FAIL lines into FAILS
+run_browser_leg() {
+  local logf="$WORK/leg-browser.log" rc=0 n
+  set +e
+  (cd "$ROOT/src/frontend" && node e2e/runtime-browser-leg.mjs "$@") 2>&1 | tee "$logf"
+  rc="${PIPESTATUS[0]}"
+  set -e
+  n="$(grep -c '^FAIL ' "$logf" || true)"
+  FAILS=$((FAILS + n))
+  if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then
+    failf "infra browser-leg" "leg exited $rc without a FAIL line (see $logf)"
+  fi
+}
+
+if [ "$E2E_BROWSER" = 1 ]; then
+  echo "== stage 6: browser"
+  run_browser_leg --fe-url "$FE_URL" --oracle "$ORACLE" --source-url "$E2E_SOURCE_URL" \
+    --commit "$E2E_FIXTURE_COMMIT" --source-path "$SOURCE_PATH" --out-dir "$OUT"
+else
+  echo "== stage 6: browser skipped (E2E_BROWSER != 1)"
 fi
 
 finish

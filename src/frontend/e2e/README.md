@@ -44,6 +44,13 @@ not wired into CI — run them manually as needed.
   images and starts a disposable stack; see `e2e/runtime/README.md`. Needs no
   `npm install` in this directory.
 
+- **`runtime-browser-leg.mjs`** — browser leg of the same runtime-image E2E
+  (Playwright library API, headless Chromium, run via `node`). Driven by
+  `E2E_BROWSER=1 bash e2e/runtime/run.sh` at the repo root against the FE
+  container the run built; it needs `npm ci` here and the Chromium for
+  Playwright 1.62.1 installed once. All other origins are aborted. See
+  `e2e/runtime/README.md`.
+
 ## Install
 
 ```bash

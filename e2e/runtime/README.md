@@ -9,6 +9,12 @@ export JAVA_HOME="$(readlink -f "$HOME/.jenv/versions/21")"
 bash e2e/runtime/run.sh
 ```
 
+With the browser stage (headless Chromium against the FE image the run built):
+
+```bash
+E2E_BROWSER=1 bash e2e/runtime/run.sh
+```
+
 ## What a run proves
 
 1. Both images build from this checkout: `src/frontend/Dockerfile` and
@@ -28,11 +34,25 @@ bash e2e/runtime/run.sh
    `ScriptService` / `ParameterApplier` on Scalus.
 7. The request reads back `VERIFIED`, script `COMPLETE`, with the oracle's final
    hash, directly from the BE and through the FE registry proxy.
+8. Only with `E2E_BROWSER=1` (stage 6): headless Chromium drives the shipped FE
+   bundle against the same stack. On `/verify` the top form plus `Verify
+   Contract` shows the unapplied oracle hash, all eight parameter-builder forms
+   render, filling them through the real widgets (including the ADA-only `Value`
+   typed as the explicit empty bytestring `0x`) makes each live per-parameter
+   CBOR equal the oracle CBOR, and the result shows the oracle final hash with
+   `All Hashes Match!` and the registry submit gate. `/registry?hash=<final
+   hash>` renders the BE record and `Share Verification` yields
+   `<FE origin>/verify?txHash=<tx>`. `/verify?txHash=<tx>` serves the
+   server-rendered social meta, pre-fills the form from the BE record,
+   auto-verifies, decodes the stored parameters into the eight forms and shows
+   the same final hash. All of it for the default env and for `preview`.
 
 ## What it does not prove
 
-- Anything in a browser: DOM rendering, the parameter-builder forms, deep links.
-- Building, signing or submitting a transaction; wallets; Blockfrost.
+- Wallets; building, signing or submitting a transaction; Blockfrost.
+- Mobile widths and the CBOR-paste mode (`Load into form`) of the builder.
+- The version dropdown's live GitHub releases list: it is blocked in the browser
+  leg and the fallback list is used.
 - Chain sync: yaci-store's own extraction of label CBOR from a block. The
   injector publishes the event yaci-store would publish; it does not test
   yaci-store.
@@ -44,6 +64,10 @@ bash e2e/runtime/run.sh
 - Docker (and the ability to pull `postgres:16-alpine` and the base images),
   `curl`, Node v20, JDK 21 at `$JAVA_HOME`, and `npm ci` done in `src/frontend`
   (the harness uses `src/frontend/node_modules/.bin/tsx`).
+- Only for `E2E_BROWSER=1`: `npm ci` in `src/frontend/e2e` (Playwright 1.62.1)
+  and its Chromium plus headless shell (revision for Playwright 1.62.1),
+  installed once by the operator. The harness never installs
+  a browser; do not run `playwright install` from a run.
 - The fixture commit `f141bf8dfecfbdf832f2f58d0f983f26ef75c899` must be
   fetchable from `E2E_SOURCE_URL` (i.e. `develop` must be pushed): both
   containers clone from GitHub. A local mirror cannot stand in, because the BE
@@ -71,12 +95,17 @@ Environment variables:
 | `E2E_FIXTURE_COMMIT` | `f141bf8dfecfbdf832f2f58d0f983f26ef75c899` | commit that carries the fixture |
 | `E2E_KEEP_IMAGES` | `0` | `1` keeps the two images after the run |
 | `E2E_TIMEOUT_S` | `1500` | shared deadline for BE processing |
+| `E2E_BROWSER` | `0` | `1` adds stage 6, the browser leg; anything but `0`/`1` exits 2 |
 
 Exit codes: `0` = no `FAIL ` line; `1` = at least one `FAIL ` line (the last
 line is `E2E RESULT: FAIL (<n> failed)`); `2` = a precondition failed and no
 Docker object was created. Preconditions: `examples/aiken-v1.1.24` and the
 oracle at `HEAD` equal the fixture commit's, the fetch probe against
-`E2E_SOURCE_URL` succeeds, and docker / JDK 21 / node v20 / tsx are present.
+`E2E_SOURCE_URL` succeeds, docker / JDK 21 / node v20 / tsx are present, and
+with `E2E_BROWSER=1` a real headless Chromium launch succeeds
+(`chromium.launch({headless:true})` from `require('playwright')` in
+`src/frontend/e2e`, which needs both Chromium and its headless shell). Without `E2E_BROWSER=1` the run prints
+`== stage 6: browser skipped (E2E_BROWSER != 1)` and runs none of that.
 
 Every expected hash and CBOR is read from
 `src/frontend/__tests__/fixtures/blueprint-v1124-oracle.json` at run time.
@@ -103,8 +132,48 @@ Each label is printed once as `PASS <label>` or `FAIL <label> — <detail>`.
 | `be rebuild-ran` | run.sh | BE log: install of v1.1.24, exactly two builds (one `env: preview`), no cache hit |
 | `be compiler-version` | run.sh | the cached plutus.json of both envs reports `v1.1.24+bacbeb3` |
 
+Browser labels (only with `E2E_BROWSER=1`, stage 6, printed by
+`src/frontend/e2e/runtime-browser-leg.mjs`; `E` as above):
+
+| Label | PASS iff |
+|---|---|
+| `browser manual-raw E` | after the top form and `Verify Contract`: one result `fixture.vault`, `Purposes: spend, else`, the eight oracle parameter titles listed in order, the Actual hash equals the oracle unapplied hash, and the unparameterized-hash note is visible |
+| `browser manual-forms E` | before typing: each of the eight parameters renders once as a form (`Form`/`CBOR` buttons, no textarea); `nested` has two `select`s at `Some`; `seed` and `payee` show their smart widgets; `minimum` has `+ Add entry` and no text input |
+| `browser manual-params E` | after the inputs: each live per-parameter CBOR equals the oracle CBOR; `minimum`'s inputs read `0x`, `0x`, `2000000` |
+| `browser manual-hash E` | the Actual hash equals the oracle final hash; `All Hashes Match!` and the matched-count line are visible |
+| `browser manual-submit-gate E` | the `Submit to Registry` heading, the registered-count line and `Connect your wallet to submit` are visible and no `Submit to Registry` button exists |
+| `browser registry-card E` | `/registry?hash=<final hash>` shows `Found 1 script`, `fixture.vault`, the `Parameterized` badge, the `env: preview` pill only for preview; `Share Verification` puts `<FE origin>/verify?txHash=<tx>` on the clipboard |
+| `browser deeplink-meta E` | with JavaScript disabled, `/verify?txHash=<tx>` serves `og:title` starting `<org>/<repo> @ <commit first 8>` and a description with the version, `1 script hash`, `VERIFIED` and (preview only) `(env: preview)` |
+| `browser deeplink-prefill E` | the form is pre-filled from the BE record (repo, commit, path, env, version `v1.1.24`, expected hash) and the pre-filled note is visible |
+| `browser deeplink-params E` | the eight forms hold the decoded stored parameters: live CBORs equal the oracle's, `minimum` reads `0x`, `0x`, `2000000` |
+| `browser deeplink-hash E` | as `manual-hash`, on the deep-link page |
+| `browser deeplink-submit-gate E` | as `manual-submit-gate`, on the deep-link page |
+| `browser no-blockfrost` | observed (independently of the route guard) across all contexts: at least one request, none with a host containing `blockfrost`, and every request to another origin emitted `requestfailed` and never finished or got a response |
+
 A `FAIL infra <step>` line means the stack could not be brought up; it counts
 as a failure.
+
+## Browser leg
+
+`E2E_BROWSER=1` runs `src/frontend/e2e/runtime-browser-leg.mjs` (Playwright
+library API, headless Chromium) after the FE and BE legs, against the FE
+container only.
+
+- **No external origin.** Every browser context routes all requests: those to
+  the FE origin continue to the real container, every other origin is aborted
+  and reported once per host as `INFO blocked <host>`. Nothing is answered with
+  a stand-in response. `INFO blocked api.github.com` is expected (the version
+  dropdown then uses its built-in fallback list, which contains `v1.1.24`).
+  There is no wallet, no Blockfrost and nothing is built, signed or submitted.
+- **Never clicked.** The only clicks are `Verify Contract`, `+ Add entry` and
+  `Share Verification`. No wallet button, no `Submit to Registry`, no
+  `Form`/`CBOR` toggle; the submit gate is only observed.
+- **Inputs fixed, expectations from the oracle.** The values typed into the
+  parameter builder are fixed in the script (hex built with `repeat`, the
+  `Value` entry typed as `0x`, `0x`, `2000000`); every expected hash and CBOR is
+  read from the oracle at run time, and the deep-link tx hashes from
+  `<work dir>/out/expected.json` written by the FE leg.
+- On a FAIL a full-page screenshot is saved to `<work dir>/out/browser/`.
 
 ## Cleanup guarantees
 
