@@ -42,7 +42,8 @@ public class ShellCommandExecutor {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(workingDir.toFile());
 
-        // Set PATH to include ~/.aiken/bin for aikup
+        // Prepend ~/.aiken/bin to PATH only so a build with no compiler version finds a
+        // bare `aiken`; versioned builds run the binary by absolute path
         Map<String, String> env = pb.environment();
         String path = env.get("PATH");
         String aikenBinPath = System.getProperty("user.home") + "/.aiken/bin";

@@ -37,9 +37,10 @@ services:
           memory: 2G
     # Volume for caching Aiken installations
     volumes:
-      # Must not be shared with another container/process: builds are serialised
-      # only within one Node process, and aikup re-points ~/.aiken/bin/aiken on
-      # every install (see README "Aiken Builds: One Process per Aiken Home").
+      # Sharing it is safe: installs are atomic and nothing under ~/.aiken/bin is
+      # touched, but builds are serialised only within one Node process, so two
+      # may each download the same version once (see README "Aiken Builds:
+      # Install and Build").
       - aiken-cache:/root/.aiken
       - build-cache:/tmp
     restart: unless-stopped

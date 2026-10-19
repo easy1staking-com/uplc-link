@@ -2,7 +2,7 @@
 // development-session harness (t302-real-verify.mjs).
 //
 // SLOW (~6 minutes), network-dependent: no API mocks — this hits the live
-// /api/verify route, which does a real git clone + aikup + aiken build.
+// /api/verify route, which does a real git clone + Aiken release download (when not installed) + aiken build.
 // NOT part of the fast suite (mobile-sweep.mjs / registry-check.mjs) —
 // run it separately and expect it to take several minutes.
 //

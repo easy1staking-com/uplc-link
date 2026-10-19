@@ -34,7 +34,7 @@ not wired into CI — run them manually as needed.
 
 - **`real-verify.mjs`** — SLOW (~6 minutes), network-dependent, NEVER part
   of the fast suite. No API mocks: submits a real repository/commit to
-  `/api/verify`, which does a real `git clone` + `aikup` + `aiken build`
+  `/api/verify`, which does a real `git clone` + Aiken release download (when not installed) + `aiken build`
   against upstream GitHub and the Aiken toolchain. Confirms the mobile
   layout holds up against real (not fixture) verification output.
 

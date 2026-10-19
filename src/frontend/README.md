@@ -17,7 +17,7 @@ The frontend provides a browser-based interface for:
 - **UI:** React 19, TailwindCSS
 - **Language:** TypeScript 5
 - **Wallet Integration:** MeshSDK
-- **Smart Contract Compilation:** Native Aiken (server-side via aikup)
+- **Smart Contract Compilation:** Native Aiken (server-side, release binary run by absolute path)
 - **Parameter Application:** MeshSDK WASM (client-side)
 
 ## Architecture
@@ -48,7 +48,7 @@ The verification process is split between server and client:
 
 **Server (Next.js API Route):**
 1. Clone Git repository
-2. Install specified Aiken version using `aikup`
+2. Download the specified Aiken release if not yet installed, and run its binary
 3. Build with native Aiken compiler
 4. Extract script hashes and parameter schemas from `plutus.json`
 5. Return results to client
@@ -99,7 +99,7 @@ See `app/registry/page.tsx` for the registry interface.
 
 - Node.js 20 or higher
 - npm or yarn
-- **aikup** (Aiken version manager) - `npm install -g @aiken-lang/aikup`
+- **tar** with gzip on PATH, plus outbound HTTPS to github.com for Aiken versions not yet installed. Versions already under `~/.aiken/versions/<tag>/`, for example preinstalled with aikup, run without network.
 - **git** - Required for cloning repositories
 
 ### Installation
@@ -309,20 +309,25 @@ NEXT_PUBLIC_API_URL=https://api.uplc.link
 NEXT_PUBLIC_NETWORK=mainnet
 ```
 
-### Aiken Builds: One Process per Aiken Home
+### Aiken Builds: Install and Build
 
-`/api/verify` serialises `aikup install` + `aiken build` within one Node process
-(`lib/aiken-toolchain.ts`): each build runs with the compiler its own request
-installed, and the throughput is one build at a time per process. `git clone`
-runs outside the lock.
+`/api/verify` runs the requested compiler by absolute path from
+`~/.aiken/versions/<tag>/` (`lib/aiken-toolchain.ts`). A version that is
+absent is downloaded from its GitHub release (`releases/download`, never the
+API), checked against its SHA-256 and moved into place atomically. The shared
+`~/.aiken/bin/aiken` is never created, removed or re-pointed.
 
-The guarantee holds only for ONE Node process per writable Aiken home
-(`$HOME/.aiken`). Separate processes sharing a home — e.g. two replicas on one
-volume — are not protected, because aikup re-points `~/.aiken/bin/aiken` on
-every install, so one process's install can switch the compiler under another
-process's build. Separate containers with isolated homes are fine. In
-`docker-compose.yml` this means the `aiken-cache` volume must not be shared
-with another container or process.
+Within one Node process, install + build pairs run one at a time, in arrival
+order, so the throughput is one build at a time per process. `git clone` runs
+outside the lock.
+
+Across processes nothing is serialised, but processes sharing one Aiken home,
+and so the `aiken-cache` volume in `docker-compose.yml`, no longer corrupt each
+other. Two of them may each download the same absent version once, and the one
+that loses the move uses the winner's binary.
+
+Not covered: a binary that is already present is trusted as it is, and temp
+dirs left behind by a crashed process are not swept.
 
 ### Build Optimization
 
@@ -349,10 +354,11 @@ If you see "WebAssembly module is included in initial chunk" errors (for MeshSDK
 
 If contract builds fail:
 
-1. Ensure `aikup` is installed on the server (`npm install -g @aiken-lang/aikup`)
-2. Check that Aiken binaries are in PATH (`~/.aiken/bin`)
-3. Verify sufficient disk space for cloning repos
-4. Check that the specified Aiken version is available
+1. Check that github.com release downloads are reachable from the server
+2. Read the `Failed to install Aiken version <tag>:` message: it names the URL and the HTTP status (a 404 means there is no release asset for that version on this platform)
+3. Check that `~/.aiken/versions` is writable
+4. Verify sufficient disk space for cloning repos
+5. Check that the specified Aiken version is available
 
 ### MeshSDK Import Errors
 
