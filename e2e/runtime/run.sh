@@ -79,7 +79,7 @@ if ! command -v curl >/dev/null 2>&1; then pre_fail "curl not found"; fi
 case "$E2E_BROWSER" in
   0) ;;
   1)
-    if ! (cd "$ROOT/src/frontend/e2e" && node -e "const fs=require('fs');const p=require('playwright').chromium.executablePath();console.log(p);process.exit(fs.existsSync(p)?0:1)") >"$WORK/browser-pre.log" 2>&1; then
+    if ! (cd "$ROOT/src/frontend/e2e" && node -e "require('playwright').chromium.launch({headless:true}).then(b=>b.close()).then(()=>process.exit(0),e=>{console.error(e.message);process.exit(1)})") >"$WORK/browser-pre.log" 2>&1; then
       pre_fail "E2E_BROWSER=1 needs Playwright 1.62.1 and its Chromium: run npm ci in src/frontend/e2e and install Chromium once (see $WORK/browser-pre.log)"
     fi
     ;;

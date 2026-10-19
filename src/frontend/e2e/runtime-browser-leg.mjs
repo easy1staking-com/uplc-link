@@ -61,11 +61,58 @@ function parseArgs(argv) {
 
 // ---------------------------------------------------------------- browser plumbing
 
-const attempted = []; // { url, host, allowed }
+// BEGIN plumbing
+// Observation, independent of the route guard below: every http(s) request the
+// page emits is recorded by Request object; "foreign" = origin other than the FE.
+const observed = []; // { request, url, host, foreign, failed, finished, responded }
+const nonHttp = new Set();
+const blocked = new Set(); // hosts the guard aborted (for INFO lines only)
+
+function observe(context, feOrigin) {
+  const find = (request) => observed.find((r) => r.request === request);
+  context.on('request', (request) => {
+    const url = request.url();
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return;
+    }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      if (!nonHttp.has(u.protocol)) {
+        nonHttp.add(u.protocol);
+        console.log(`INFO non-http ${u.protocol}`);
+      }
+      return;
+    }
+    observed.push({
+      request,
+      url,
+      host: u.host,
+      foreign: u.origin !== feOrigin,
+      failed: false,
+      finished: false,
+      responded: false,
+    });
+  });
+  context.on('requestfailed', (request) => {
+    const r = find(request);
+    if (r) r.failed = true;
+  });
+  context.on('requestfinished', (request) => {
+    const r = find(request);
+    if (r) r.finished = true;
+  });
+  context.on('response', (response) => {
+    const r = find(response.request());
+    if (r) r.responded = true;
+  });
+}
 
 async function newContext(browser, feOrigin, extra = {}) {
   const context = await browser.newContext(extra);
   context.setDefaultTimeout(20000);
+  observe(context, feOrigin);
   // Same-origin requests continue to the real FE; everything else is aborted
   await context.route('**/*', (route) => {
     const url = route.request().url();
@@ -79,14 +126,13 @@ async function newContext(browser, feOrigin, extra = {}) {
       host = url.slice(0, 40);
     }
     const allowed = origin === feOrigin;
-    const rec = { url, host, allowed, aborted: false };
-    attempted.push(rec);
     if (allowed) return route.continue();
-    rec.aborted = true;
+    blocked.add(host);
     return route.abort();
   });
   return context;
 }
+// END plumbing
 
 async function shot(page, outDir, flow) {
   try {
@@ -465,19 +511,25 @@ async function main() {
     await browser.close();
   }
 
-  const hosts = [...new Set(attempted.filter((a) => !a.allowed).map((a) => a.host))];
-  for (const h of hosts) console.log(`INFO blocked ${h}`);
-  const blockfrost = attempted.filter((a) => a.host.toLowerCase().includes('blockfrost'));
-  const leaked = attempted.filter((a) => !a.allowed && !a.aborted);
-  if (attempted.length === 0) {
-    fail('browser no-blockfrost', 'no request was recorded; the guard did not run');
-  } else if (leaked.length > 0) {
-    fail('browser no-blockfrost', `request(s) to another origin not aborted: ${leaked.map((a) => a.url).join(', ')}`);
+  // BEGIN evaluation
+  // Decided from observed requests only, after every context is closed.
+  for (const h of blocked) console.log(`INFO blocked ${h}`);
+  const foreignReqs = observed.filter((r) => r.foreign);
+  const blockfrost = observed.filter((r) => r.host.toLowerCase().includes('blockfrost'));
+  const notAborted = foreignReqs.filter((r) => !r.failed || r.finished || r.responded);
+  if (observed.length === 0) {
+    fail('browser no-blockfrost', 'condition 1 failed: no request was recorded');
   } else if (blockfrost.length > 0) {
-    fail('browser no-blockfrost', `attempted: ${blockfrost.map((a) => a.url).join(', ')}`);
+    fail('browser no-blockfrost', `condition 2 failed: blockfrost host requested: ${blockfrost.map((r) => r.url).join(', ')}`);
+  } else if (notAborted.length > 0) {
+    fail(
+      'browser no-blockfrost',
+      `condition 3 failed: foreign request(s) not aborted (no requestfailed, or finished/responded): ${notAborted.map((r) => r.url).join(', ')}`,
+    );
   } else {
     pass('browser no-blockfrost');
   }
+  // END evaluation
 }
 
 main().then(

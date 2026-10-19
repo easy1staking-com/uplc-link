@@ -65,7 +65,8 @@ E2E_BROWSER=1 bash e2e/runtime/run.sh
   `curl`, Node v20, JDK 21 at `$JAVA_HOME`, and `npm ci` done in `src/frontend`
   (the harness uses `src/frontend/node_modules/.bin/tsx`).
 - Only for `E2E_BROWSER=1`: `npm ci` in `src/frontend/e2e` (Playwright 1.62.1)
-  and its Chromium, installed once by the operator. The harness never installs
+  and its Chromium plus headless shell (revision for Playwright 1.62.1),
+  installed once by the operator. The harness never installs
   a browser; do not run `playwright install` from a run.
 - The fixture commit `f141bf8dfecfbdf832f2f58d0f983f26ef75c899` must be
   fetchable from `E2E_SOURCE_URL` (i.e. `develop` must be pushed): both
@@ -101,9 +102,9 @@ line is `E2E RESULT: FAIL (<n> failed)`); `2` = a precondition failed and no
 Docker object was created. Preconditions: `examples/aiken-v1.1.24` and the
 oracle at `HEAD` equal the fixture commit's, the fetch probe against
 `E2E_SOURCE_URL` succeeds, docker / JDK 21 / node v20 / tsx are present, and
-with `E2E_BROWSER=1` Playwright's Chromium is installed (the `chromium`
-executable path reported by `require('playwright')` in `src/frontend/e2e`
-exists). Without `E2E_BROWSER=1` the run prints
+with `E2E_BROWSER=1` a real headless Chromium launch succeeds
+(`chromium.launch({headless:true})` from `require('playwright')` in
+`src/frontend/e2e`, which needs both Chromium and its headless shell). Without `E2E_BROWSER=1` the run prints
 `== stage 6: browser skipped (E2E_BROWSER != 1)` and runs none of that.
 
 Every expected hash and CBOR is read from
@@ -147,7 +148,7 @@ Browser labels (only with `E2E_BROWSER=1`, stage 6, printed by
 | `browser deeplink-params E` | the eight forms hold the decoded stored parameters: live CBORs equal the oracle's, `minimum` reads `0x`, `0x`, `2000000` |
 | `browser deeplink-hash E` | as `manual-hash`, on the deep-link page |
 | `browser deeplink-submit-gate E` | as `manual-submit-gate`, on the deep-link page |
-| `browser no-blockfrost` | no request attempted in any browser context had a host containing `blockfrost`, and every request to another origin was aborted |
+| `browser no-blockfrost` | observed (independently of the route guard) across all contexts: at least one request, none with a host containing `blockfrost`, and every request to another origin emitted `requestfailed` and never finished or got a response |
 
 A `FAIL infra <step>` line means the stack could not be brought up; it counts
 as a failure.
