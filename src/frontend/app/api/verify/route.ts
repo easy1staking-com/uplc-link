@@ -11,7 +11,7 @@ import type { BlueprintDefinitions, BlueprintPreamble, BlueprintSchema } from "@
 // No shell: arguments are passed as arrays, never interpolated into a command line
 const execFileAsync = promisify(execFile);
 
-// aikup install + aiken build, serialised per process (see lib/aiken-toolchain.ts)
+// Verified release install (if absent) + aiken build by absolute path, serialised per process (see lib/aiken-toolchain.ts)
 const aikenToolchain = createAikenToolchain();
 
 const COMMIT_HASH_PATTERN = /^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$/; // SHA-1 or SHA-256
