@@ -18,7 +18,8 @@ import java.util.List;
 
 /**
  * Compiler service for Aiken smart contracts
- * Handles git clone, aikup version installation, and aiken build
+ * Handles git clone, Aiken version resolution (by absolute path, see
+ * {@link AikenToolchain}), and aiken build
  */
 @Service
 @RequiredArgsConstructor
@@ -28,6 +29,8 @@ public class AikenCompilerService implements CompilerService {
     private static final long MAX_PLUTUS_JSON_BYTES = 10L * 1024 * 1024;
 
     private final ShellCommandExecutor shellExecutor;
+
+    private final AikenToolchain aikenToolchain;
 
     @Value("${verification.build-timeout-seconds:300}")
     private long buildTimeoutSeconds;
@@ -103,21 +106,20 @@ public class AikenCompilerService implements CompilerService {
                 log.info("Using source path: {}", workDir);
             }
 
-            // Install Aiken version if specified
+            // Install Aiken version if specified, and run it by absolute
+            // path; without a version the build uses `aiken` from PATH
+            String aikenCommand = "aiken";
             if (compilerVersion != null && !compilerVersion.isEmpty()) {
-                String releaseTag = toReleaseTag(compilerVersion);
-                log.info("Installing Aiken version: {} (release tag: {})", compilerVersion, releaseTag);
-                shellExecutor.execute(
-                    List.of("aikup", "install", releaseTag),
-                    workDir,
-                    buildTimeoutSeconds);
+                String canonicalTag = AikenReleaseAsset.toCanonicalTag(compilerVersion);
+                log.info("Installing Aiken version: {} (release tag: {})", compilerVersion, canonicalTag);
+                aikenCommand = aikenToolchain.ensureInstalled(canonicalTag).toString();
             }
 
             // Build with Aiken (--env changes the compiled bytecode, so it is
             // part of the request identity and the cache key)
             var buildCommand = env != null && !env.isEmpty()
-                    ? List.of("aiken", "build", "--env", env)
-                    : List.of("aiken", "build");
+                    ? List.of(aikenCommand, "build", "--env", env)
+                    : List.of(aikenCommand, "build");
             log.info("Building Aiken project in: {}{}", workDir,
                     env != null && !env.isEmpty() ? " (env: " + env + ")" : "");
             var buildResult = shellExecutor.execute(
