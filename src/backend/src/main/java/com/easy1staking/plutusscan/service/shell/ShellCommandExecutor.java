@@ -9,7 +9,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -41,15 +40,6 @@ public class ShellCommandExecutor {
 
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(workingDir.toFile());
-
-        // Prepend ~/.aiken/bin to PATH only so a build with no compiler version finds a
-        // bare `aiken`; versioned builds run the binary by absolute path
-        Map<String, String> env = pb.environment();
-        String path = env.get("PATH");
-        String aikenBinPath = System.getProperty("user.home") + "/.aiken/bin";
-        env.put("PATH", aikenBinPath + ":" + path);
-
-        log.debug("PATH environment: {}", env.get("PATH"));
 
         Process process = pb.start();
 

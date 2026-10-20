@@ -46,20 +46,23 @@ public final class RequestValidator {
             return Optional.of("Invalid commit hash (must be 40 or 64 hex chars)");
         }
 
+        // Fail closed: without a version there is no reproducible build, and
+        // no compiler type has a meaning for an empty one
         var version = request.compilerVersion();
-        if (version != null && !version.isEmpty()) {
-            if (version.length() > MAX_COMPILER_VERSION_LENGTH) {
-                return Optional.of("Compiler version too long");
+        if (version == null || version.isEmpty()) {
+            return Optional.of("compiler version required");
+        }
+        if (version.length() > MAX_COMPILER_VERSION_LENGTH) {
+            return Optional.of("Compiler version too long");
+        }
+        if (request.compilerType() == CompilerType.AIKEN) {
+            try {
+                AikenCompilerService.toReleaseTag(version);
+            } catch (Exception e) {
+                return Optional.of("Invalid Aiken version: " + version);
             }
-            if (request.compilerType() == CompilerType.AIKEN) {
-                try {
-                    AikenCompilerService.toReleaseTag(version);
-                } catch (Exception e) {
-                    return Optional.of("Invalid Aiken version: " + version);
-                }
-            } else if (!version.matches("[A-Za-z0-9.+\\-]+")) {
-                return Optional.of("Invalid compiler version: " + version);
-            }
+        } else if (!version.matches("[A-Za-z0-9.+\\-]+")) {
+            return Optional.of("Invalid compiler version: " + version);
         }
 
         var env = request.env();

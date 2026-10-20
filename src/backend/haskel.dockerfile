@@ -15,9 +15,6 @@ RUN apt-get update && \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install aikup (Aiken version manager)
-RUN curl --proto '=https' --tlsv1.2 -LsSf https://install.aiken-lang.org | sh
-
 # Install GHCup (Haskell toolchain manager)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | \
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1 \
@@ -26,8 +23,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | \
     BOOTSTRAP_HASKELL_INSTALL_NO_STACK=1 \
     sh
 
-# Ensure aikup, ghcup, ghc, and cabal are in PATH
-ENV PATH="/root/.aiken/bin:/root/.ghcup/bin:/root/.cabal/bin:${PATH}"
+# Ensure ghcup, ghc, and cabal are in PATH
+ENV PATH="/root/.ghcup/bin:/root/.cabal/bin:${PATH}"
 
 # Update cabal package list
 RUN /root/.ghcup/bin/cabal update

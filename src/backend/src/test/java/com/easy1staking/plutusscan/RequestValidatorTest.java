@@ -6,8 +6,11 @@ import com.easy1staking.plutusscan.util.RequestValidator;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class RequestValidatorTest {
@@ -34,8 +37,33 @@ public class RequestValidatorTest {
     public void acceptsWellFormedRequest() {
         assertTrue(RequestValidator.validate(
                 request("https://github.com/org/repo", VALID_COMMIT, "v1.1.21+42babe5", "contracts/sub")).isEmpty());
-        assertTrue(RequestValidator.validate(
-                request("https://github.com/org/repo", VALID_COMMIT, null, null)).isEmpty());
+    }
+
+    @Test
+    public void rejectsMissingCompilerVersion() {
+        // no compiler version means no reproducible build: rejected for every compiler type
+        assertEquals(Optional.of("compiler version required"), RequestValidator.validate(
+                request("https://github.com/org/repo", VALID_COMMIT, null, null)));
+        assertEquals(Optional.of("compiler version required"), RequestValidator.validate(
+                request("https://github.com/org/repo", VALID_COMMIT, "", null)));
+        var plutarch = PlutusScanRequest.builder()
+                .compilerType(CompilerType.PLUTARCH)
+                .sourceUrl("https://github.com/org/repo")
+                .commitHash(VALID_COMMIT)
+                .compilerVersion("")
+                .parameters(Map.of())
+                .build();
+        assertEquals(Optional.of("compiler version required"), RequestValidator.validate(plutarch));
+    }
+
+    @Test
+    public void whitespaceVersionKeepsShapeRejection() {
+        // only null/empty is "missing"; whitespace still fails the version shape check
+        var rejection = RequestValidator.validate(
+                request("https://github.com/org/repo", VALID_COMMIT, "   ", null));
+        assertTrue(rejection.isPresent());
+        assertTrue(rejection.get().startsWith("Invalid Aiken version"), rejection.get());
+        assertNotEquals("compiler version required", rejection.get());
     }
 
     @Test
