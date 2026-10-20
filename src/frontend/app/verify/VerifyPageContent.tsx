@@ -26,6 +26,7 @@ import {
   type AikenVersionSource,
 } from "@/lib/aiken-version";
 import type { VerificationResponseDto } from "@/lib/types/registry";
+import { toVerifyInputs, registrySubmitReadiness, type VerifyInputs } from "@/lib/verify-inputs";
 
 function VerifyPageContent() {
   const searchParams = useSearchParams();
@@ -51,6 +52,8 @@ function VerifyPageContent() {
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [validatorParams, setValidatorParams] = useState<ValidatorParams>({});
   const [calculatedHashes, setCalculatedHashes] = useState<Record<string, string>>({});
+  // The request the shown verification ran with, which is what a submission anchors
+  const [verifiedInputs, setVerifiedInputs] = useState<VerifyInputs | null>(null);
 
   // Track if we should auto-verify after loading
   const [shouldAutoVerify, setShouldAutoVerify] = useState(false);
@@ -70,6 +73,7 @@ function VerifyPageContent() {
   // release tag (or null) — the only form that is ever posted or submitted.
   const versionInput = describeAikenVersionInput(aikenVersionInput, aikenVersions, versionSource);
   const aikenTag = versionInput.tag;
+  const currentInputs = toVerifyInputs({ repoUrl, commitHash, aikenTag, sourcePath, env });
 
   // Fetch Aiken versions on mount
   useEffect(() => {
@@ -418,20 +422,16 @@ function VerifyPageContent() {
 
   const handleVerify = async () => {
     if (!aikenTag) return;
+    const request = toVerifyInputs({ repoUrl, commitHash, aikenTag, sourcePath, env });
     setStatus("verifying");
     setVerificationResult(null);
+    setVerifiedInputs(null);
 
     try {
       const response = await fetch('/api/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repoUrl,
-          commitHash,
-          aikenVersion: aikenTag,
-          sourcePath: sourcePath || undefined,
-          env: env.trim() || undefined,
-        }),
+        body: JSON.stringify(request),
       });
 
       if (!response.ok) {
@@ -454,6 +454,7 @@ function VerifyPageContent() {
       }
 
       setVerificationResult(result);
+      setVerifiedInputs(request);
 
       // Initialize parameters for the new result set. State is keyed by
       // validator hash and both initializers preserve existing entries for
@@ -896,6 +897,21 @@ function VerifyPageContent() {
                                  actualHashes.every(h => parsedExpectedHashes.includes(h));
                 if (!allMatch) return null;
 
+                // Snapshot gate: a submission anchors the inputs the shown
+                // verification ran with. Once the form differs from them,
+                // offer a re-verify instead of submitting either tuple.
+                const readiness = registrySubmitReadiness(verifiedInputs, currentInputs);
+                if (readiness.kind === "unverified") return null;
+                if (readiness.kind === "stale") {
+                  return (
+                    <div className="mt-6 p-4 bg-zinc-900 border border-orange-800 rounded">
+                      <h3 className="font-bold text-lg mb-2">Inputs Changed Since Verification</h3>
+                      <p className="text-sm text-gray-300">{readiness.notice}</p>
+                    </div>
+                  );
+                }
+                const submitted = readiness.inputs;
+
                 // Registry gate: the on-chain metadata format (label 1984)
                 // carries parameters as Plutus Data only. Raw UPLC constant
                 // params applied here client-side cannot be expressed, and
@@ -922,11 +938,11 @@ function VerifyPageContent() {
                 return (
                   <SubmitToRegistry
                     verificationData={{
-                      repoUrl,
-                      commitHash,
-                      aikenVersion: aikenTag ?? "",
-                      sourcePath,
-                      env: env.trim() || undefined,
+                      repoUrl: submitted.repoUrl,
+                      commitHash: submitted.commitHash,
+                      aikenVersion: submitted.aikenVersion,
+                      sourcePath: submitted.sourcePath ?? "",
+                      env: submitted.env,
                       expectedHashes,
                       results: verificationResult.results,
                       encodedParams,
