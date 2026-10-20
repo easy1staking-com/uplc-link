@@ -47,8 +47,9 @@ not wired into CI — run them manually as needed.
 - **`runtime-browser-leg.mjs`** — browser leg of the same runtime-image E2E
   (Playwright library API, headless Chromium, run via `node`). Driven by
   `E2E_BROWSER=1 bash e2e/runtime/run.sh` at the repo root against the FE
-  container the run built; it needs `npm ci` here and the Chromium for
-  Playwright 1.62.1 installed once. All other origins are aborted. See
+  container the run built; it needs `npm ci` here and Chromium and its headless
+  shell for Playwright 1.62.1 installed once (see Install). Requests to other
+  origins are aborted; redirect hops are not prevented, and are detected only when the other origin answers. See
   `e2e/runtime/README.md`.
 
 - **`runtime-devnet-leg.ts`** — devnet leg of the same runtime-image E2E (run
@@ -67,6 +68,14 @@ cd src/frontend/e2e
 npm install
 npx playwright install chromium
 ```
+
+`npx playwright install chromium` installs both Chrome for Testing
+(`chromium-<rev>`) and Chrome Headless Shell (`chromium_headless_shell-<rev>`),
+revision 1234 for Playwright 1.62.1. Headless launches
+(`chromium.launch({ headless: true })`, used by `runtime-browser-leg.mjs` and by
+`run.sh`'s `E2E_BROWSER=1` precondition) run the headless shell, so do not pass
+`--no-shell`. With only `chromium-1234` installed,
+`E2E_BROWSER=1 bash e2e/runtime/run.sh` exits 2 at that precondition.
 
 This is a separate `package.json`/lockfile from `src/frontend` — Playwright
 is pinned here (`1.62.1`) and is not a dependency of the app itself.

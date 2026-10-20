@@ -8,9 +8,12 @@
  *
  * Reads `<out-dir>/expected.json` (written by runtime-fe-leg.ts `prepare`) for
  * each env's txHash. Every expected hash and CBOR comes from the oracle file at
- * run time; none is a literal. Every browser context blocks all origins but
- * the FE (aborted, never answered with a stand-in), so no wallet / Blockfrost /
- * GitHub request can leave the page. Nothing is built, signed or submitted; the
+ * run time; none is a literal. Every request the page makes to another origin
+ * is aborted (never answered with a stand-in). A redirect hop from an FE
+ * response is not routed (Playwright calls a route only for the first URL of a
+ * redirect chain), so it would reach the network, and it would fail
+ * `browser no-blockfrost` only if the other origin answered it.
+ * Nothing is built, signed or submitted; the
  * only clicks are `Verify Contract`, `+ Add entry` and `Share Verification`.
  *
  * Every label prints exactly once as `PASS <label>` or `FAIL <label> — <detail>`

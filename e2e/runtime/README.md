@@ -32,9 +32,11 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
    FE image's default `aiken`); the unapplied hash equals the oracle's.
 3. The FE's own modules (`payloadToCborHex`, `applyPayloadsAndHash`) apply the
    eight oracle parameters step by step and reach the oracle's hashes.
-4. The label-1984 record is encoded exactly as `SubmitToRegistry` +
-   `buildRegistrySubmissionTx` attach it (CIP-171 constr 0, six fields, chunked
-   by 128 hex characters into a byte-chunk array under label 1984).
+4. The label-1984 record is encoded as `SubmitToRegistry` shapes it (CIP-171
+   constr 0, six fields). The FE leg re-implements `buildRegistrySubmissionTx`'s
+   chunking (128 hex characters, byte chunks under label 1984) because the
+   builder needs a chain client; only with `E2E_DEVNET=1` does
+   `devnet replay-identity E` prove the two byte-identical.
 5. The BE image ingests that record through its real path
    (`TxMetadataEventListener` -> `TxMetadataProcessor` ->
    `PlutusScanRequestParser` -> `RequestValidator`).
@@ -64,7 +66,8 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
    of the shipped BE image, with its default entrypoint and no injector, syncs
    from the devnet node from genesis, ingests both txs through the real
    yaci-store path, rebuilds them and reads back `VERIFIED` / `COMPLETE` with
-   the oracle final hash; the ingested slots equal the devnet's.
+   the oracle final hash; the ingested slots equal the devnet's. Each env's
+   on-chain label-1984 CBOR equals stage 5's replay record byte for byte.
 
 ## What it does not prove
 
@@ -72,6 +75,8 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
   wallet, preview/preprod/mainnet, the Blockfrost service (stage 7 uses only
   the devkit's Blockfrost-compatible yaci-store API with the dummy project id
   `devnet`), the deployed backend.
+- Without `E2E_DEVNET=1`: that the injected label CBOR equals what
+  `buildRegistrySubmissionTx` attaches (the FE leg mirrors its chunking).
 - Mobile widths and the CBOR-paste mode (`Load into form`) of the builder.
 - The version dropdown's live GitHub releases list: it is blocked in the browser
   leg and the fallback list is used.
@@ -192,14 +197,15 @@ Devnet labels (only with `E2E_DEVNET=1`, stage 7; `E` as above):
 | `devnet guard` | `runtime-devnet-leg.ts` submit | V1, V3, V2 hold (loopback devkit URL, project id `devnet`, genesis magic 42) |
 | `devnet submit E` | `runtime-devnet-leg.ts` submit | the FE builder and `signAndSubmitTx` return a 64-hex tx hash, indexed by the devkit with integer slot > 0 |
 | `devnet onchain-metadata E` | `runtime-devnet-leg.ts` submit | the indexed tx carries exactly one label 1984 whose ≤ 64-byte chunks reassemble to `encodeVerificationMetadata(md)` |
+| `devnet replay-identity E` | `runtime-devnet-leg.ts` submit | the devkit's label-1984 CBOR for the env's tx equals, byte for byte, stage 5's `replay.txt` line for that env |
 | `devnet verified E` | `runtime-devnet-leg.ts` check | the devnet BE's by-tx is `VERIFIED`, no error, env/source/commit/path/compiler as submitted |
 | `devnet script E` | `runtime-devnet-leg.ts` check | one script `fixture.vault`, oracle raw hash, `COMPLETE`, provided parameters = oracle CBORs |
 | `devnet final-hash E` | `runtime-devnet-leg.ts` check | final hash = oracle `applied_hashes[7]` = `expected.json` `finalHash` |
 | `devnet no-injector` | run.sh | the devnet BE has no injector, loader path or `/e2e` mount, no `E2E-INJECTED`, and logged `Received verification request: … from tx <hash>` for both txs |
 | `devnet ingest-slot` | run.sh | the devnet database holds exactly the two txs, each at the slot the devkit reports |
 
-That is 13 labels: `devnet guard`, `devnet no-injector`, `devnet ingest-slot`
-and five per env.
+That is 15 labels: `devnet guard`, `devnet no-injector`, `devnet ingest-slot`
+and six per env.
 
 A `FAIL infra <step>` line means the stack could not be brought up; it counts
 as a failure.
@@ -210,10 +216,20 @@ as a failure.
 library API, headless Chromium) after the FE and BE legs, against the FE
 container only.
 
-- **No external origin.** Every browser context routes all requests: those to
+- **No direct external request.** Every browser context routes all requests: those to
   the FE origin continue to the real container, every other origin is aborted
   and reported once per host as `INFO blocked <host>`. Nothing is answered with
-  a stand-in response. `INFO blocked api.github.com` is expected (the version
+  a stand-in response. The route does not see everything: Playwright calls a
+  route handler only for the first URL of a redirect chain, and not for
+  requests a Service Worker handles. If an FE response redirected to another
+  origin, that hop would reach the network, because routes are not applied to
+  it. `browser no-blockfrost` catches such a hop only when the other origin
+  answers it (condition 3: a foreign request that finished or got a response)
+  or when its host contains `blockfrost` (condition 2). A hop whose connection
+  fails before any response looks exactly like an aborted request, so it
+  passes undetected even though the request has left the host. Redirect hops
+  are therefore not prevented, and detected only when answered. The FE has no
+  cross-origin redirect today. `INFO blocked api.github.com` is expected (the version
   dropdown then uses its built-in fallback list, which contains `v1.1.24`).
   There is no wallet, no Blockfrost and nothing is built, signed or submitted.
 - **Never clicked.** The only clicks are `Verify Contract`, `+ Add entry` and

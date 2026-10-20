@@ -206,7 +206,9 @@ done
 
 docker run -d --name "$FE" --network "$NET" -p 127.0.0.1::3000 \
   -e "BACKEND_URL=http://$BE:8080" "$FE_IMG" >/dev/null || infra_fail fe-start "could not start the FE container"
-FE_URL="http://$(docker port "$FE" 3000/tcp | sed -n 1p)"
+FE_ADDR="$(docker port "$FE" 3000/tcp 2>/dev/null | sed -n 1p || true)"
+[ -n "$FE_ADDR" ] || infra_fail fe-start "docker port $FE 3000/tcp printed nothing"
+FE_URL="http://$FE_ADDR"
 FE_UP=0
 for _ in $(seq 1 60); do
   if [ "$(curl -s -o /dev/null -w '%{http_code}' "$FE_URL/api/health" 2>/dev/null || true)" = 200 ]; then FE_UP=1; break; fi
@@ -244,7 +246,9 @@ docker run -d --name "$BE" --network "$NET" -p 127.0.0.1::8080 \
   --store.sync-auto-start=false --spring.main.sources=e2e.ingest.MetadataReplayInjector \
   --e2e.replay.file=/e2e/replay.txt --verification.poll-interval-ms=5000 >/dev/null \
   || infra_fail be-start "could not start the BE container"
-BE_URL="http://$(docker port "$BE" 8080/tcp | sed -n 1p)"
+BE_ADDR="$(docker port "$BE" 8080/tcp 2>/dev/null | sed -n 1p || true)"
+[ -n "$BE_ADDR" ] || infra_fail be-start "docker port $BE 8080/tcp printed nothing"
+BE_URL="http://$BE_ADDR"
 
 INJECTED=0
 for _ in $(seq 1 90); do

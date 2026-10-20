@@ -19,8 +19,9 @@
  *
  * Every label prints exactly once as `PASS <label>` or `FAIL <label> — <detail>`
  * at line start; the last line is `DEVNET-LEG <mode>: PASS|FAIL`. Exit 0 iff no
- * FAIL. Every expected hash and CBOR comes from the oracle file, expected.json
- * or the submission; none is a literal.
+ * FAIL. Every expected hash and CBOR comes from the oracle file, expected.json,
+ * replay.txt (stage 5's label CBOR per tx hash) or the submission; none is a
+ * literal.
  * CommonJS under tsx (no "type" in e2e/package.json): no top-level await.
  */
 
@@ -164,6 +165,7 @@ async function submit(opts: Record<string, string>): Promise<void> {
     for (const env of ENVS) {
       skipped(`devnet submit ${env.name}`, "devnet guard failed");
       skipped(`devnet onchain-metadata ${env.name}`, "devnet guard failed");
+      skipped(`devnet replay-identity ${env.name}`, "devnet guard failed");
     }
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, "devnet.json"), "[]");
@@ -199,6 +201,7 @@ async function submit(opts: Record<string, string>): Promise<void> {
         : "expected.json has no entry for this env";
       skipped(L("devnet submit"), reason);
       skipped(L("devnet onchain-metadata"), reason);
+      skipped(L("devnet replay-identity"), reason);
       continue;
     }
     const inputs: Inputs = readJson(inputsFile);
@@ -214,6 +217,7 @@ async function submit(opts: Record<string, string>): Promise<void> {
 
     let txHash = "";
     let slot = 0;
+    let onchainHex = "";
     const submitted = await check(L("devnet submit"), async () => {
       const client = Client.make(chain)
         .withBlockfrost({ baseUrl: devkitUrl, projectId: config.blockfrostProjectId })
@@ -270,10 +274,31 @@ async function submit(opts: Record<string, string>): Promise<void> {
         }
         const joined = (chunks as unknown[]).map(hexOf).join("");
         if (joined !== encodeVerificationMetadata(md)) return "reassembled chunks differ from encodeVerificationMetadata(md)";
+        onchainHex = String(labelled[0].metadata).toLowerCase();
         return null;
       });
+      // Byte identity of the builder's on-chain label CBOR with stage 5's replay record
+      if (onchainHex === "") {
+        skipped(L("devnet replay-identity"), "devnet onchain-metadata failed");
+      } else {
+        await check(L("devnet replay-identity"), () => {
+          const replayFile = path.join(outDir, "replay.txt");
+          if (!fs.existsSync(replayFile)) return `${path.basename(replayFile)} missing`;
+          const lines = fs.readFileSync(replayFile, "utf-8").split("\n")
+            .filter((l) => l.trim() !== "")
+            .map((l) => l.trim().split(/\s+/))
+            .filter((t) => t[0] === exp.txHash);
+          if (lines.length !== 1) return `${lines.length} replay.txt lines for tx ${exp.txHash}, expected exactly 1`;
+          const replayHex = (lines[0][1] ?? "").toLowerCase();
+          if (replayHex === onchainHex) return null;
+          let at = 0;
+          while (at < replayHex.length && at < onchainHex.length && replayHex[at] === onchainHex[at]) at++;
+          return `on-chain label CBOR (${onchainHex.length} hex chars) != replay.txt (${replayHex.length} hex chars), first difference at hex offset ${at}`;
+        });
+      }
     } else {
       skipped(L("devnet onchain-metadata"), "devnet submit failed");
+      skipped(L("devnet replay-identity"), "devnet submit failed");
     }
   }
 
