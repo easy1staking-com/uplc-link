@@ -3,7 +3,7 @@
  *
  * Aiken reports its version with build metadata (e.g. "v1.1.21+42babe5" in
  * plutus.json preambles and on-chain verification metadata), but GitHub
- * releases — what the toolchain installs (lib/aiken-toolchain.ts) and what the version dropdown shows — are
+ * releases — what the toolchain installs (lib/aiken-toolchain.ts) and what the version suggestions list — are
  * tagged without it (e.g. "v1.1.21").
  */
 
@@ -27,8 +27,9 @@ export function toAikenReleaseTag(version: string): string | null {
 }
 
 /**
- * Offline fallback for the version dropdown, used only when the GitHub
- * releases API is unreachable.
+ * Offline fallback for the version suggestions (the datalist behind the typed
+ * tag input), used only when the GitHub releases API is unreachable. Any
+ * shape-valid tag can still be typed, so this list limits only what is offered.
  *
  * Every entry MUST be a real aiken-lang/aiken *release* tag: the toolchain
  * downloads release assets, so an entry with no published release (or a wrong
@@ -94,4 +95,76 @@ export async function fetchAikenReleaseTags(
     }
   }
   return tags;
+}
+
+export type AikenVersionSource = 'github' | 'fallback';
+
+export interface AikenVersionSuggestions {
+  versions: string[];
+  source: AikenVersionSource;
+  /** Why the fallback was used; absent when the source is 'github'. */
+  error?: unknown;
+}
+
+/**
+ * The suggestions for the typed tag input: the GitHub releases list when it
+ * can be fetched (even an empty one), otherwise the offline fallback. Never
+ * rejects and does not log; the caller decides what to do with `error`.
+ */
+export async function loadAikenVersionSuggestions(
+  fetchImpl: typeof fetch = fetch
+): Promise<AikenVersionSuggestions> {
+  try {
+    const versions = await fetchAikenReleaseTags(fetchImpl);
+    return { versions, source: 'github' };
+  } catch (error) {
+    return { versions: [...FALLBACK_AIKEN_VERSIONS], source: 'fallback', error };
+  }
+}
+
+export interface AikenVersionInputState {
+  /** Canonical release tag, or null when the input is blank or not a tag. */
+  tag: string | null;
+  error: string | null;
+  notices: string[];
+}
+
+/**
+ * What the typed version field means. The tag comes from toAikenReleaseTag,
+ * the guard /api/verify applies, so client and server cannot drift.
+ */
+export function describeAikenVersionInput(
+  input: string,
+  suggestions: readonly string[],
+  source: AikenVersionSource | null
+): AikenVersionInputState {
+  const trimmed = input.trim();
+  if (trimmed === '') {
+    return { tag: null, error: null, notices: [] };
+  }
+  const tag = toAikenReleaseTag(input);
+  if (tag === null) {
+    return {
+      tag: null,
+      error: `Not an Aiken release tag: "${trimmed}". Expected a tag like v1.1.21 or v1.0.29-alpha.`,
+      notices: [],
+    };
+  }
+  const notices: string[] = [];
+  if (tag !== trimmed) {
+    notices.push(`Using release tag ${tag}.`);
+  }
+  if (source === 'github' && !suggestions.includes(tag)) {
+    notices.push(
+      `${tag} is not in GitHub's release list; verification will fail if it has no published release.`
+    );
+  }
+  return { tag, error: null, notices };
+}
+
+/** Says so when the suggestions are the offline list. */
+export function aikenVersionListNotice(source: AikenVersionSource | null): string | null {
+  return source === 'fallback'
+    ? 'Could not load the release list from GitHub, so the suggestions are a short offline list. You can type any Aiken release tag.'
+    : null;
 }

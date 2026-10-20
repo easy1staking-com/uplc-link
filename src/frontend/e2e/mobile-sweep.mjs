@@ -494,7 +494,7 @@ for (const { w, h } of WIDTHS) {
     const byLabel = t => p.locator(`xpath=//label[contains(., "${t}")]/following::input[1]`).first();
     await byLabel('Repository').fill('https://github.com/SundaeSwap-finance/sundae-contracts');
     await byLabel('Commit').fill('edc118880d3baffcb7d5bd277faec2e7dc54c59b');
-    await p.selectOption('select', 'v1.0.26-alpha');
+    await p.fill('#aiken-version', 'v1.0.26-alpha');
     await p.fill('textarea', 'fdf6390e10925e2d3730af90b67c463677a8c357453472dd2da342e5');
     await p.click('button:has-text("Verify")');
     const found = await p.waitForSelector('text=Configure Validator Parameters', { timeout: 20000 })
