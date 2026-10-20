@@ -131,9 +131,10 @@ function VerifyPageContent() {
         setExpectedHashes(hashes.join('\n'));
 
         // Only auto-verify when the stored compiler version normalized cleanly.
-        // Otherwise aikenVersion still holds the default (latest) release, and
-        // auto-verifying against the wrong compiler would show a spurious hash
-        // mismatch with no explanation — surface the reason and let the user pick.
+        // Otherwise aikenVersionInput keeps whatever it already held (empty, the
+        // first version suggestion, or the user's own typing), and auto-verifying
+        // against that compiler would show a spurious hash mismatch with no
+        // explanation — surface the reason and let the user enter the tag.
         if (version) {
           setShouldAutoVerify(true);
         } else {

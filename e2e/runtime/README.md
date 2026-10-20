@@ -78,7 +78,7 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
 - Without `E2E_DEVNET=1`: that the injected label CBOR equals what
   `buildRegistrySubmissionTx` attaches (the FE leg mirrors its chunking).
 - Mobile widths and the CBOR-paste mode (`Load into form`) of the builder.
-- The version dropdown's live GitHub releases list: it is blocked in the browser
+- The version suggestions' live GitHub releases list: it is blocked in the browser
   leg and the fallback list is used.
 - Without `E2E_DEVNET=1`, chain sync: yaci-store's own extraction of label
   CBOR from a block. The injector publishes the event yaci-store would publish;
@@ -230,7 +230,7 @@ container only.
   passes undetected even though the request has left the host. Redirect hops
   are therefore not prevented, and detected only when answered. The FE has no
   cross-origin redirect today. `INFO blocked api.github.com` is expected (the version
-  dropdown then uses its built-in fallback list, which contains `v1.1.24`).
+  suggestions then come from the built-in fallback list, which contains `v1.1.24`).
   There is no wallet, no Blockfrost and nothing is built, signed or submitted.
 - **Never clicked.** The only clicks are `Verify Contract`, `+ Add entry` and
   `Share Verification`. No wallet button, no `Submit to Registry`, no

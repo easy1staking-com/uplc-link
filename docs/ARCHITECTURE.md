@@ -20,7 +20,7 @@ UPLC Link is a decentralized verification platform for Cardano smart contracts. 
 
 ### Key Design Principles
 
-1. **Transparency** - All verification happens client-side; no hidden processes
+1. **Transparency** - Builds run server-side with the exact Aiken release requested and return their build log; parameter application, hashing and comparison run in the browser
 2. **Decentralization** - Registry lives on-chain via metadata transactions
 3. **Reproducibility** - Deterministic builds ensure consistent verification
 4. **Accessibility** - Browser-based, no installation required
@@ -41,13 +41,13 @@ UPLC Link is a decentralized verification platform for Cardano smart contracts. 
 │   │  - Registry Search │   │   │  - /verification-requests/*     │ │
 │   │  - Wallet Connect  │   │   │                                 │ │
 │   │                    │   │   └─────────────┬───────────────────┘ │
-│   │  WASM Compiler     │   │                 │                     │
-│   │  - Aiken Build     │   │   ┌─────────────▼───────────────────┐ │
-│   │  - Hash Calc       │   │   │                                 │ │
-│   │  - Parameterization│   │   │  Service Layer                  │ │
+│   │  Evolution SDK     │   │                 │                     │
+│   │  - Hash Calc       │   │   ┌─────────────▼───────────────────┐ │
+│   │  - Parameterization│   │   │                                 │ │
+│   │  - Tx Metadata 1984│   │   │  Service Layer                  │ │
 │   │                    │   │   │  - ScriptService                │ │
 │   │  Wallet Integration│   │   │  - AddressService               │ │
-│   │  - MeshSDK         │   │   │  - VerificationService          │ │
+│   │  - CIP-30 wallets  │   │   │  - VerificationService          │ │
 │   │  - TX Builder      │   │   │                                 │ │
 │   │                    │   │   └─────────────┬───────────────────┘ │
 │   └────────────────────┘   │                 │                     │
@@ -77,10 +77,10 @@ UPLC Link is a decentralized verification platform for Cardano smart contracts. 
 - **Framework:** Next.js 15 (App Router, React 19)
 - **Language:** TypeScript 5
 - **Styling:** TailwindCSS
-- **Wallet:** MeshSDK (@meshsdk/core, @meshsdk/core-csl)
+- **Cardano SDK:** Evolution SDK (`@evolution-sdk/evolution` 0.6.0, vendored build, see `src/frontend/vendor/README.md`) for wallet client, transaction building, parameter application, script hashing and label-1984 metadata encoding
 - **Compilation:** Native Aiken (server-side, release binary run by absolute path)
-- **Parameterization:** MeshSDK WASM (client-side)
-- **Build:** Webpack with WASM support
+- **Parameterization:** Evolution SDK (client-side)
+- **Build:** `next build`, standalone output (`next.config.ts` sets only `output: "standalone"`)
 
 ### Directory Structure
 
@@ -134,7 +134,6 @@ The main verification UI handles:
 
 - Uses React state for form management
 - Fetches Aiken versions from GitHub API
-- Dynamic imports for MeshSDK WASM modules (code splitting)
 - Real-time hash recalculation on parameter changes
 
 #### 2. Server-Side Compilation
@@ -169,7 +168,7 @@ Validators can require parameters (e.g., policy IDs, stake keys). The parameteri
 - **Type inference:** Identifies simple types (bytes, int) vs complex types (maps, constructors)
 - **Validator references:** Allows using another validator's hash as a parameter
 - **Live updates:** Recalculates hashes immediately when parameters change
-- **CBOR encoding:** Encodes parameters correctly for MeshSDK
+- **CBOR encoding:** Encodes parameters as Plutus Data CBOR with the Evolution SDK (`lib/blueprint/encode.ts`)
 
 **Implementation:**
 
@@ -183,8 +182,8 @@ const resolvedParams = params.map(param => {
   return param.value; // User-provided value
 });
 
-const scriptCbor = applyParamsToScript(compiledCode, resolvedParams, "CBOR");
-const hash = resolveScriptHash(scriptCbor, plutusVersion);
+// lib/blueprint/apply-params.ts (Evolution SDK UPLC under the hood)
+const { scriptCbor, hash } = applyPayloadsAndHash(compiledCode, payloads, plutusVersion);
 ```
 
 #### 4. Registry Submission
@@ -193,7 +192,7 @@ After verification, users can submit to the on-chain registry:
 
 **Flow:**
 
-1. Connect wallet (MeshSDK wallet provider)
+1. Connect wallet (raw CIP-30, wrapped in an Evolution SDK client: `lib/cardano/wallet-provider.tsx`)
 2. Build transaction with metadata label 1984
 3. Sign transaction in user's wallet
 4. Submit to Cardano blockchain
@@ -217,25 +216,6 @@ After verification, users can submit to the on-chain registry:
   }
 }
 ```
-
-### Webpack Configuration
-
-Special configuration required for MeshSDK WASM modules:
-
-```typescript
-// next.config.ts
-config.experiments = {
-  asyncWebAssembly: true,  // Enable WASM for MeshSDK
-  layers: true,
-};
-
-config.module.rules.push({
-  test: /\.wasm$/,
-  type: "webassembly/async",
-});
-```
-
-This allows loading MeshSDK's WASM modules for parameter application and hash calculation in the browser.
 
 ## Backend Architecture
 
@@ -414,7 +394,7 @@ User ────▶ Frontend ────▶ Next.js API ────▶ Git Cl
              │                                      │
              │◀────── Return results ───────────────┘
              │
-             │ Apply parameters (MeshSDK WASM)
+             │ Apply parameters (Evolution SDK)
              │ Recalculate hashes
              │ Compare with expected
              ▼
@@ -432,7 +412,7 @@ User ────▶ Frontend ────▶ Next.js API ────▶ Git Cl
 7. **Server:** Returns results to client
 8. **Client:** Displays initial results
 9. **Client:** User applies parameters (if needed)
-10. **Client:** Recalculates hashes using MeshSDK WASM
+10. **Client:** Recalculates hashes using the Evolution SDK
 11. **Client:** Compares with expected hashes
 12. Results displayed (✅/❌ for each validator)
 
@@ -527,16 +507,12 @@ store:
 
 ### Transaction Building (Frontend)
 
-MeshSDK builds the registry submission transaction:
+The Evolution SDK client builds the registry submission transaction (`lib/cardano/transaction-builder.ts`):
 
 ```typescript
-import { Transaction } from '@meshsdk/core';
-
-const tx = new Transaction({ initiator: wallet });
-tx.setMetadata(1984, verificationMetadata);
-const unsignedTx = await tx.build();
-const signedTx = await wallet.signTx(unsignedTx);
-const txHash = await wallet.submitTx(signedTx);
+const signBuilder = await buildRegistrySubmissionTx(wallet, verificationMetadata);
+// client.newTx().payToAddress(...).attachMetadata({ label: 1984n, ... }).build()
+const txHash = await signAndSubmitTx(signBuilder);
 ```
 
 ## Security Considerations
@@ -550,14 +526,13 @@ const txHash = await wallet.submitTx(signedTx);
    - Temporary directories cleaned up after build
 
 2. **Wallet Integration**
-   - MeshSDK handles wallet security
+   - Keys stay in the wallet extension; the app reaches it only through CIP-30
    - Private keys never exposed
    - Transaction signing in wallet extension
 
-3. **WASM Sandboxing (Client-Side)**
-   - MeshSDK WASM runs in browser sandbox for parameterization
+3. **Client-Side Parameterization**
+   - The Evolution SDK runs in the page for parameter application and hashing
    - No file system access
-   - Memory isolated
 
 ### Backend Security
 
@@ -594,17 +569,9 @@ const txHash = await wallet.submitTx(signedTx);
 
 ### Frontend Performance
 
-- **Code splitting:** MeshSDK WASM modules loaded on-demand
 - **Lazy loading:** Registry data paginated
 - **Static generation:** Docs pages pre-rendered
 - **Server-side builds:** Offloads compilation from client
-
-**Optimization:**
-
-```typescript
-// Dynamic import for MeshSDK WASM
-const { applyParamsToScript } = await import("@meshsdk/core-csl");
-```
 
 ### Server Performance
 
@@ -676,7 +643,7 @@ List<Script> findByHash(String hash);
 - **Instant feedback:** Live hash updates as parameters change
 - **No server load:** Parameter changes don't require new builds
 - **Privacy:** Parameter values stay in browser
-- **WASM efficiency:** MeshSDK WASM handles CBOR encoding efficiently
+- **One library:** the Evolution SDK that builds the registry transaction also encodes parameters and hashes scripts
 
 ## Future Enhancements
 
@@ -729,7 +696,7 @@ CARDANO_NODE_PORT=3001
 **Frontend:**
 - Next.js 15
 - React 19
-- MeshSDK 1.9
+- Evolution SDK 0.6.0 (`@evolution-sdk/evolution`, vendored build)
 - TailwindCSS 3.4
 
 **Backend:**

@@ -16,9 +16,9 @@ The frontend provides a browser-based interface for:
 - **Framework:** Next.js 15 (App Router)
 - **UI:** React 19, TailwindCSS
 - **Language:** TypeScript 5
-- **Wallet Integration:** MeshSDK
+- **Cardano SDK:** Evolution SDK (`@evolution-sdk/evolution`, vendored build, see `vendor/README.md`) for wallet connection, transaction building, parameter application and script hashing
 - **Smart Contract Compilation:** Native Aiken (server-side, release binary run by absolute path)
-- **Parameter Application:** MeshSDK WASM (client-side)
+- **Parameter Application:** Evolution SDK (client-side)
 
 ## Architecture
 
@@ -55,7 +55,7 @@ The verification process is split between server and client:
 
 **Client (Browser):**
 1. Display validation results
-2. Apply parameters using MeshSDK WASM
+2. Apply parameters using the Evolution SDK
 3. Recalculate hashes client-side
 4. Compare with expected hashes
 
@@ -99,7 +99,7 @@ See `app/registry/page.tsx` for the registry interface.
 
 - Node.js 20 or higher
 - npm or yarn
-- **tar** with gzip on PATH, plus outbound HTTPS to github.com for Aiken versions not yet installed. Versions already under `~/.aiken/versions/<tag>/`, for example preinstalled with aikup, run without network.
+- **tar** with gzip on PATH, plus outbound HTTPS to both `github.com` and `release-assets.githubusercontent.com` (GitHub redirects release downloads there) for Aiken versions not yet installed. Release binaries are installed only on Linux and macOS, on x86_64 or arm64 (see Troubleshooting). Versions already under `~/.aiken/versions/<tag>/`, for example preinstalled with aikup, run without network.
 - **git** - Required for cloning repositories
 
 ### Installation
@@ -195,30 +195,18 @@ Health check endpoint.
 
 ### Next.js Configuration
 
-The `next.config.ts` file includes special webpack configuration for:
+The `next.config.ts` file sets only `output: "standalone"`. It carries no custom bundler, loader or module-shim configuration, and none is needed.
 
-- WebAssembly support (for MeshSDK WASM modules)
-- MeshSDK externalization (server-side)
-- Polyfills for Node.js modules (fs, net, tls)
+### Evolution SDK Integration
 
-### Webpack WASM Support
+The Evolution SDK (`@evolution-sdk/evolution`) is used for:
+- Wallet connection: raw CIP-30 `enable()` wrapped in `Client.make(<chain>).withBlockfrost(...).withCip30(api)` (`lib/cardano/wallet-provider.tsx`)
+- Transaction building, signing and submission (`lib/cardano/transaction-builder.ts`)
+- Parameter application to scripts (`lib/blueprint/apply-params.ts`) and parameter CBOR encoding (`lib/blueprint/encode.ts`)
+- Script hash calculation (`lib/cardano/script-hash.ts`)
+- Label-1984 metadata encoding (`lib/cardano/metadata-encoder.ts`)
 
-```typescript
-config.experiments = {
-  asyncWebAssembly: true,
-  layers: true,
-};
-```
-
-This enables loading MeshSDK's WASM modules for parameter application and hash calculation in the browser.
-
-### MeshSDK Integration
-
-MeshSDK is used for:
-- Wallet connection (multiple providers)
-- Transaction building
-- Parameter application to scripts
-- Script hash calculation
+The package is the vendored tarball described in `vendor/README.md`, not a registry install.
 
 ## Development Guide
 
@@ -342,30 +330,23 @@ const nextConfig = {
 
 ## Troubleshooting
 
-### WASM Loading Issues
-
-If you see "WebAssembly module is included in initial chunk" errors (for MeshSDK):
-
-1. Ensure `asyncWebAssembly` is enabled in webpack config
-2. Use dynamic imports for WASM-dependent code
-3. Check browser compatibility (Chrome 89+, Firefox 86+)
-
 ### Aiken Installation Issues
 
 If contract builds fail:
 
-1. Check that github.com release downloads are reachable from the server
+1. Check that release downloads are reachable from the server. The `releases/download/<tag>/<asset>` request and its `.sha256` sidecar go to `github.com`, which answers each with a 302 to `release-assets.githubusercontent.com`, so an egress allowlist that admits only `github.com` fails every install. The backend image (`AikenToolchain`) downloads the same way, from the same two hosts, with the same platform limits.
 2. Read the `Failed to install Aiken version <tag>:` message: it names the URL and the HTTP status (a 404 means there is no release asset for that version on this platform)
-3. Check that `~/.aiken/versions` is writable
-4. Verify sufficient disk space for cloning repos
-5. Check that the specified Aiken version is available
+3. Check the platform. Only Linux and macOS on x86_64 or arm64 are supported; anything else fails before any request with `Unsupported platform for Aiken releases: <platform>` or `Unsupported architecture for Aiken releases: <arch>`. Legacy releases (v1.0.26 and older, the `-alpha` releases up to `v1.0.26-alpha`) publish no checksum, so they install only on Linux x86_64 against a pinned SHA-256. Elsewhere they fail with `no published or pinned SHA-256 for <asset>; refusing to download it`, unless that version's binary is already present under `~/.aiken/versions/<tag>/`
+4. Check that `~/.aiken/versions` is writable
+5. Verify sufficient disk space for cloning repos
+6. Check that the specified Aiken version is available
 
-### MeshSDK Import Errors
+### Evolution SDK Import Errors
 
-If you see "Module not found" for MeshSDK:
+If `@evolution-sdk/evolution` cannot be resolved:
 
-1. Check `next.config.ts` externals configuration
-2. Ensure client-side imports use dynamic imports
+1. Run `npm ci` in `src/frontend` (the dependency is the vendored tarball `vendor/evolution-sdk-evolution-0.6.0-831e9cfa.tgz`, not a registry package)
+2. Check the tarball's sha256 against `vendor/README.md` (`npm ci` does not verify a `file:` tarball)
 3. Clear `.next` cache and rebuild
 
 ### Build Failures
@@ -381,7 +362,7 @@ If contracts fail to build:
 
 - Compilation runs server-side (Next.js API route)
 - Native Aiken compilation takes 5-30 seconds depending on project size
-- Parameter updates trigger live hash recalculation in browser (WASM)
+- Parameter updates trigger live hash recalculation in the browser (Evolution SDK)
 - Registry searches are cached by browser
 - Server needs sufficient resources for git clones and builds
 
@@ -390,8 +371,6 @@ If contracts fail to build:
 - Chrome/Edge 89+
 - Firefox 86+
 - Safari 15.4+
-
-WebAssembly and dynamic imports are required.
 
 ## Contributing
 
