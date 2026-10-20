@@ -45,6 +45,12 @@ public class AikenCompilerService implements CompilerService {
 
         Path buildDir = null;
         try {
+            // Defense in depth: ingest rejects a missing version, but entity
+            // values may predate that rule; never fall back to any `aiken`
+            if (compilerVersion == null || compilerVersion.isEmpty()) {
+                throw new CompilationException("compiler version required");
+            }
+
             // Parse source URL
             var parsedUrl = SourceUrlParser.parse(sourceUrl)
                     .orElseThrow(() -> new CompilationException("Invalid source URL: " + sourceUrl));
@@ -106,14 +112,11 @@ public class AikenCompilerService implements CompilerService {
                 log.info("Using source path: {}", workDir);
             }
 
-            // Install Aiken version if specified, and run it by absolute
-            // path; without a version the build uses `aiken` from PATH
-            String aikenCommand = "aiken";
-            if (compilerVersion != null && !compilerVersion.isEmpty()) {
-                String canonicalTag = AikenReleaseAsset.toCanonicalTag(compilerVersion);
-                log.info("Installing Aiken version: {} (release tag: {})", compilerVersion, canonicalTag);
-                aikenCommand = aikenToolchain.ensureInstalled(canonicalTag).toString();
-            }
+            // Install the requested Aiken version and run it by the absolute
+            // path AikenToolchain resolves
+            String canonicalTag = AikenReleaseAsset.toCanonicalTag(compilerVersion);
+            log.info("Installing Aiken version: {} (release tag: {})", compilerVersion, canonicalTag);
+            String aikenCommand = aikenToolchain.ensureInstalled(canonicalTag).toString();
 
             // Build with Aiken (--env changes the compiled bytecode, so it is
             // part of the request identity and the cache key)

@@ -25,11 +25,8 @@ RUN set -eux; \
     dpkg -i /tmp/libssl1.1.deb; \
     rm -f /tmp/libssl1.1.deb
 
-# Install aikup (Aiken version manager)
-RUN curl --proto '=https' --tlsv1.2 -LsSf https://install.aiken-lang.org | sh
-
-# Ensure aikup is in PATH
-ENV PATH="/root/.aiken/bin:${PATH}"
+# No Aiken is preinstalled: the backend downloads each requested release on
+# demand into /root/.aiken/versions/ and runs it by absolute path
 
 # Create temp directory for builds
 RUN mkdir -p /tmp/plutus-scan-builds
