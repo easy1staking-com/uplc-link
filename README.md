@@ -24,7 +24,7 @@ UPLC Link is an open-source platform that enables developers and users to verify
 
 1. Go to [uplc.link](https://uplc.link)
 2. Enter the GitHub repository URL and commit hash
-3. Select the Aiken compiler version
+3. Enter the Aiken compiler version (a release tag such as `v1.1.24`; the field suggests published releases)
 4. Click "Verify" to build and compare hashes
 5. (Optional) Register verified contracts to the public registry
 
@@ -72,8 +72,8 @@ curl "https://api.uplc.link/api/v1/verification-requests?sourceUrl=https://githu
 - Next.js 15 (App Router)
 - React 18
 - TailwindCSS
-- MeshSDK (Cardano wallet integration)
-- Aiken WASM (browser-based compilation)
+- Evolution SDK (wallet connection, transaction building, parameter application and script hashing)
+- Native Aiken release binaries (server-side compilation in the Next.js `/api/verify` route)
 
 **Backend:**
 - Spring Boot 3.3
@@ -169,7 +169,7 @@ Please open an issue or pull request on GitHub.
 ### 1. Verification Process
 
 1. **User Input:** Provide Git repo URL, commit hash, and Aiken version
-2. **Clone & Build:** Frontend clones the repo and builds with Aiken (WASM)
+2. **Clone & Build:** The Next.js server (`/api/verify`) clones the repo and builds it with the native Aiken release binary of the chosen version
 3. **Hash Comparison:** Compare built script hashes with on-chain hashes
 4. **Result:** Display verification status for each validator
 
@@ -209,7 +209,7 @@ Please open an issue or pull request on GitHub.
 
 - [Aiken](https://aiken-lang.org) - Smart contract language
 - [Cardano](https://cardano.org) - Blockchain platform
-- [MeshSDK](https://meshsdk.com) - Cardano wallet integration
+- [Evolution SDK](https://github.com/IntersectMBO/evolution-sdk) - Cardano wallet, transaction and Plutus tooling
 - [Yaci](https://github.com/bloxbean/yaci-store) - Cardano indexer
 
 ### Special Thanks
