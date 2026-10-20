@@ -68,6 +68,10 @@ function legacy(assetName: string, integrity: AikenReleaseAsset['integrity']): A
   return { assetName, binaryRelPath: ['aiken'], integrity };
 }
 
+function sha256Hex(data: string): string {
+  return createHash('sha256').update(data).digest('hex');
+}
+
 function throws(fn: () => unknown): string | null {
   try {
     fn();
@@ -105,6 +109,23 @@ async function testAikenRelease(): Promise<boolean> {
     ok = check(
       `${tag} linux x64 → legacy, pinned (got ${show(asset)})`,
       same(asset, expected) && /^[0-9a-f]{64}$/.test(LEGACY_LINUX_X64_SHA256[tag] ?? '')
+    ) && ok;
+  }
+
+  // an injected pinned table (the toolchain's test seam) replaces the real one
+  {
+    const hex = sha256Hex('v0.9.1 fixture');
+    const asset = aikenReleaseAsset('v0.9.1', 'linux', 'x64', { 'v0.9.1': hex });
+    ok = check(
+      `v0.9.1 linux x64 with an injected table → legacy, pinned with that hex (got ${show(asset)})`,
+      same(asset, legacy('aiken_v0.9.1_linux_amd64.tar.gz', { kind: 'pinned', sha256: hex }))
+    ) && ok;
+  }
+  {
+    const asset = aikenReleaseAsset('v0.9.1', 'linux', 'x64');
+    ok = check(
+      `v0.9.1 linux x64 with the default table → legacy, integrity unavailable (got ${show(asset)})`,
+      same(asset, legacy('aiken_v0.9.1_linux_amd64.tar.gz', { kind: 'unavailable' }))
     ) && ok;
   }
 
