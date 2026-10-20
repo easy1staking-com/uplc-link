@@ -104,6 +104,20 @@ public class AikenReleaseAssetTest {
     }
 
     @Test
+    public void pinnedTableOverloadIsOnlyASeam() throws Exception {
+        String hex = "ab".repeat(32);
+        AikenReleaseAsset seamed = AikenReleaseAsset.resolve("v0.9.1", LINUX, "amd64", Map.of("v0.9.1", hex));
+        assertEquals("aiken_v0.9.1_linux_amd64.tar.gz", seamed.getAssetName());
+        assertEquals(Integrity.PINNED, seamed.getIntegrity());
+        assertEquals(hex, seamed.getPinnedSha256());
+
+        // the 3-argument form reads the frozen table, where a fake tag is absent
+        AikenReleaseAsset production = resolve("v0.9.1", LINUX, "amd64");
+        assertEquals(Integrity.UNAVAILABLE, production.getIntegrity());
+        assertNull(production.getPinnedSha256());
+    }
+
+    @Test
     public void refusesUnsupportedPlatforms() {
         assertThrows(CompilationException.class, () -> resolve("v1.1.24", "Windows 11", "amd64"));
         assertThrows(CompilationException.class, () -> resolve("v1.1.24", "FreeBSD", "amd64"));

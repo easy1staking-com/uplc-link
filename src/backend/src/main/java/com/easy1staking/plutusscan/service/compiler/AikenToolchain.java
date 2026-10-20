@@ -28,6 +28,10 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Resolves the Aiken compiler for a release tag to an absolute binary path,
@@ -44,6 +48,10 @@ import java.util.List;
  * extracted into a temp dir beside the versions and renamed into place in one
  * atomic step, so a crash or a concurrent install never leaves a partial binary
  * at the layout path.
+ *
+ * Each request (asset and sidecar) must deliver its whole body within the
+ * build timeout of being sent, or the install fails. Download errors name the
+ * requested URL, never the signed URL it redirected to.
  */
 @Component
 @Slf4j
@@ -58,6 +66,8 @@ public class AikenToolchain {
     private final String releaseBaseUrl;
     private final long timeoutSeconds;
     private final HttpClient httpClient;
+    // Test seam: only tests replace it (by reflection), to pin fixture archives under fake legacy tags
+    private Map<String, String> legacyPinnedSha256 = AikenReleaseAsset.LEGACY_LINUX_X64_SHA256;
 
     public AikenToolchain(
             ShellCommandExecutor shellExecutor,
@@ -89,7 +99,7 @@ public class AikenToolchain {
             throw new CompilationException("Not a canonical Aiken release tag: " + canonicalTag);
         }
         AikenReleaseAsset asset = AikenReleaseAsset.resolve(
-                canonicalTag, System.getProperty("os.name"), System.getProperty("os.arch"));
+                canonicalTag, System.getProperty("os.name"), System.getProperty("os.arch"), legacyPinnedSha256);
 
         Path installDir = versionsDir.resolve(canonicalTag).normalize();
         if (!versionsDir.equals(installDir.getParent())
@@ -189,16 +199,16 @@ public class AikenToolchain {
      * @return lower-case hex SHA-256 of the bytes written
      */
     private String download(String url, Path target) throws CompilationException, IOException {
-        HttpResponse<InputStream> response = send(url);
         MessageDigest digest = sha256();
-        try (InputStream in = response.body()) {
+        try (BoundedBody bounded = send(url)) {
+            HttpResponse<InputStream> response = bounded.response();
             checkStatus(url, response);
             checkContentLength(url, response, MAX_ASSET_BYTES);
             try (OutputStream out = Files.newOutputStream(target)) {
                 byte[] buffer = new byte[64 * 1024];
                 long total = 0;
                 int n;
-                while ((n = in.read(buffer)) != -1) {
+                while ((n = bounded.read(buffer)) != -1) {
                     total += n;
                     if (total > MAX_ASSET_BYTES) {
                         throw new CompilationException(url + " exceeds " + MAX_ASSET_BYTES + " bytes");
@@ -217,12 +227,12 @@ public class AikenToolchain {
      * @return its first whitespace-delimited token, which must be 64 hex characters
      */
     private String fetchSidecarSha256(String url) throws CompilationException, IOException {
-        HttpResponse<InputStream> response = send(url);
         byte[] body;
-        try (InputStream in = response.body()) {
+        try (BoundedBody bounded = send(url)) {
+            HttpResponse<InputStream> response = bounded.response();
             checkStatus(url, response);
             checkContentLength(url, response, MAX_SIDECAR_BYTES);
-            body = in.readNBytes((int) MAX_SIDECAR_BYTES + 1);
+            body = bounded.readNBytes((int) MAX_SIDECAR_BYTES + 1);
         }
         if (body.length > MAX_SIDECAR_BYTES) {
             throw new CompilationException(url + " exceeds " + MAX_SIDECAR_BYTES + " bytes");
@@ -234,13 +244,19 @@ public class AikenToolchain {
         return tokens[0];
     }
 
-    private HttpResponse<InputStream> send(String url) throws CompilationException, IOException {
+    /**
+     * Send a GET for {@code url} and return its body, which must be read
+     * within {@link #timeoutSeconds} of the request being sent.
+     */
+    private BoundedBody send(String url) throws CompilationException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .GET()
                 .build();
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+        HttpResponse<InputStream> response;
         try {
-            return httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new CompilationException("Interrupted while downloading " + url, e);
@@ -249,6 +265,99 @@ public class AikenToolchain {
             // the signed URL the request was redirected to
             throw new CompilationException("Failed to download " + url + ": "
                     + e.getClass().getSimpleName(), e);
+        }
+        return BoundedBody.arm(url, response, deadlineNanos, timeoutSeconds);
+    }
+
+    /**
+     * A response body that must be read by its request's deadline.
+     *
+     * HttpRequest.timeout bounds the headers, but not the body of a response
+     * served without a redirect, so a watchdog closes the body when the
+     * deadline passes, which unblocks a stalled read. The watchdog is a
+     * one-shot task on the JDK's shared delayed executor: no thread or pool is
+     * created per request. Read errors name the requested URL and the exception
+     * type only, never a message that could carry the redirect target.
+     */
+    private static final class BoundedBody implements AutoCloseable {
+
+        private final String url;
+        private final HttpResponse<InputStream> response;
+        private final long timeoutSeconds;
+        /** Set once, by whichever comes first: the watchdog or {@link #close()}. */
+        private final AtomicBoolean settled = new AtomicBoolean();
+        private volatile boolean expired;
+
+        private BoundedBody(String url, HttpResponse<InputStream> response, long timeoutSeconds) {
+            this.url = url;
+            this.response = response;
+            this.timeoutSeconds = timeoutSeconds;
+        }
+
+        static BoundedBody arm(String url, HttpResponse<InputStream> response, long deadlineNanos,
+                               long timeoutSeconds) {
+            BoundedBody body = new BoundedBody(url, response, timeoutSeconds);
+            long delayNanos = Math.max(0, deadlineNanos - System.nanoTime());
+            CompletableFuture.delayedExecutor(delayNanos, TimeUnit.NANOSECONDS).execute(body::expire);
+            return body;
+        }
+
+        HttpResponse<InputStream> response() {
+            return response;
+        }
+
+        int read(byte[] buffer) throws CompilationException, IOException {
+            int n;
+            try {
+                n = response.body().read(buffer);
+            } catch (IOException e) {
+                throw readFailure(e);
+            }
+            if (expired) {
+                throw timedOut(null);
+            }
+            return n;
+        }
+
+        byte[] readNBytes(int len) throws CompilationException, IOException {
+            byte[] bytes;
+            try {
+                bytes = response.body().readNBytes(len);
+            } catch (IOException e) {
+                throw readFailure(e);
+            }
+            if (expired) {
+                throw timedOut(null);
+            }
+            return bytes;
+        }
+
+        private void expire() {
+            if (settled.compareAndSet(false, true)) {
+                expired = true;
+                try {
+                    response.body().close();
+                } catch (IOException ignored) {
+                    // the read it was meant to unblock reports the timeout
+                }
+            }
+        }
+
+        private CompilationException readFailure(IOException e) {
+            return expired ? timedOut(e)
+                    : new CompilationException("Failed to download " + url + ": " + e.getClass().getSimpleName(), e);
+        }
+
+        private CompilationException timedOut(IOException cause) {
+            return new CompilationException("Failed to download " + url + ": timed out after "
+                    + timeoutSeconds + " s", cause);
+        }
+
+        /** Disarms the watchdog and closes the body. */
+        @Override
+        public void close() throws IOException {
+            settled.set(true);
+            response.body().close();
         }
     }
 

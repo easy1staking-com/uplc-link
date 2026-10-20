@@ -99,6 +99,20 @@ public final class AikenReleaseAsset {
      */
     public static AikenReleaseAsset resolve(String canonicalTag, String osName, String osArch)
             throws CompilationException {
+        return resolve(canonicalTag, osName, osArch, LEGACY_LINUX_X64_SHA256);
+    }
+
+    /**
+     * Resolve the asset against a given table of legacy linux amd64 digests.
+     *
+     * @param legacyPinnedSha256 test seam: production always passes
+     *        {@link #LEGACY_LINUX_X64_SHA256} (via the 3-argument form); tests
+     *        pass a table pinning fixture archives under fake legacy tags
+     * @see #resolve(String, String, String)
+     */
+    public static AikenReleaseAsset resolve(String canonicalTag, String osName, String osArch,
+                                            Map<String, String> legacyPinnedSha256)
+            throws CompilationException {
         Matcher m = canonicalTag == null ? null : CANONICAL_TAG.matcher(canonicalTag);
         if (m == null || !m.matches()) {
             throw new CompilationException("Not a canonical Aiken release tag: " + canonicalTag);
@@ -125,7 +139,7 @@ public final class AikenReleaseAsset {
         if (compare(core, LAST_LEGACY) <= 0) {
             String asset = "aiken_" + canonicalTag + "_" + (linux ? "linux" : "darwin")
                     + "_" + (x64 ? "amd64" : "arm64") + ".tar.gz";
-            String pinned = linux && x64 ? LEGACY_LINUX_X64_SHA256.get(canonicalTag) : null;
+            String pinned = linux && x64 ? legacyPinnedSha256.get(canonicalTag) : null;
             return new AikenReleaseAsset(canonicalTag, asset, List.of("aiken"),
                     pinned != null ? Integrity.PINNED : Integrity.UNAVAILABLE, pinned);
         }
