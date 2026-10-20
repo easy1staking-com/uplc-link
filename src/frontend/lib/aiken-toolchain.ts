@@ -46,7 +46,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { promisify } from "util";
-import { AIKEN_RELEASE_BASE_URL, aikenReleaseAsset } from "./aiken-release";
+import { AIKEN_RELEASE_BASE_URL, aikenReleaseAsset, LEGACY_LINUX_X64_SHA256 } from "./aiken-release";
 import { toAikenReleaseTag } from "./aiken-version";
 
 export type ExecFileFn = (
@@ -61,6 +61,8 @@ export interface AikenToolchainOptions {
   timeoutMs?: number;
   maxBuffer?: number;
   releaseBaseUrl?: string;
+  /** Test seam: the legacy linux x64 pinned table (default: the real one). */
+  legacyPinnedSha256?: Readonly<Record<string, string>>;
 }
 
 // No shell: arguments are passed as arrays, never interpolated into a command line
@@ -130,6 +132,7 @@ export function createAikenToolchain(options: AikenToolchainOptions = {}) {
   const versionsDir = path.resolve(options.home ?? os.homedir(), ".aiken", "versions");
   const releaseBaseUrl = (options.releaseBaseUrl ?? AIKEN_RELEASE_BASE_URL).replace(/\/+$/, "");
   const releaseProtocol = new URL(releaseBaseUrl).protocol;
+  const legacyPinned = options.legacyPinnedSha256 ?? LEGACY_LINUX_X64_SHA256;
 
   /**
    * GET `url` (redirects followed) into memory, at most `maxBytes`. Errors name
@@ -192,7 +195,7 @@ export function createAikenToolchain(options: AikenToolchainOptions = {}) {
 
   /** Absolute path of `tag`'s compiler, downloading and installing it if absent. */
   async function ensureInstalled(tag: string): Promise<string> {
-    const asset = aikenReleaseAsset(tag, process.platform, process.arch);
+    const asset = aikenReleaseAsset(tag, process.platform, process.arch, legacyPinned);
     const installDir = path.join(versionsDir, tag);
     // Defence in depth: the guarded tag is exactly one segment under versions/
     if (path.dirname(installDir) !== versionsDir || path.basename(installDir) !== tag) {

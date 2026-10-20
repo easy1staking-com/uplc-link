@@ -90,7 +90,7 @@ function compareCore(a: Core, b: Core): number {
  * Throws unless `tag` is already a canonical release tag, and on any platform
  * or architecture Aiken publishes no Unix tarball for.
  */
-export function aikenReleaseAsset(tag: string, platform: string, arch: string): AikenReleaseAsset {
+export function aikenReleaseAsset(tag: string, platform: string, arch: string, legacyPinned: Readonly<Record<string, string>> = LEGACY_LINUX_X64_SHA256): AikenReleaseAsset {
   if (toAikenReleaseTag(tag) !== tag) {
     throw new Error(`Invalid Aiken release tag: ${tag}`);
   }
@@ -106,8 +106,8 @@ export function aikenReleaseAsset(tag: string, platform: string, arch: string): 
     const legacyOs = platform;
     const legacyArch = arch === "x64" ? "amd64" : "arm64";
     const pinned = platform === "linux" && arch === "x64"
-      && Object.prototype.hasOwnProperty.call(LEGACY_LINUX_X64_SHA256, tag)
-      ? LEGACY_LINUX_X64_SHA256[tag]
+      && Object.prototype.hasOwnProperty.call(legacyPinned, tag)
+      ? legacyPinned[tag]
       : undefined;
     return {
       assetName: `aiken_${tag}_${legacyOs}_${legacyArch}.tar.gz`,

@@ -21,7 +21,10 @@
  * - fixture archives are made with the system `tar`, laid out from
  *   aikenReleaseAsset() for the host platform, as the real releases are;
  * - the lost rename race is forced by planting the destination right after
- *   the real `tar` returns, and the download race by two instances at once.
+ *   the real `tar` returns, and the download race by two instances at once;
+ * - a cross-protocol redirect is simulated by wrapping `globalThis.fetch` to
+ *   redefine the asset response's `url` (restored after the scenario), and
+ *   fake legacy releases are pinned through the `legacyPinnedSha256` seam.
  *
  * Every compiler version asserted here is read from the plutus.json the build
  * actually wrote. No network beyond 127.0.0.1, and the real ~/.aiken is never
@@ -56,6 +59,23 @@ const V_MISSING = 'v9.9.9'; // absent: the download answers 404 (after a 302)
 // Real legacy tags, served fake bytes: never installable here.
 const V_LEGACY_PINNED = 'v1.0.0-alpha';
 const V_LEGACY_UNPINNED = 'v1.0.9-alpha';
+// Absent, one per guard scenario (installs persist in the shared fixture home)
+const V_REDIRECT = 'v9.8.1'; // asset response's url reads as https
+const V_DECLARED = 'v9.8.2'; // asset declares 256 MiB + 1 bytes
+const V_STREAMED = 'v9.8.3'; // asset streams 256 MiB + 1 bytes, chunked
+const V_SIDECAR_OVER = 'v9.8.4'; // sidecar padded to 4097 bytes
+const V_SIDECAR_CHUNKED = 'v9.8.5'; // sidecar padded to 4096 bytes, chunked
+const V_SIDECAR_DECLARED = 'v9.8.6'; // sidecar padded to 4096 bytes, content-length: 4096
+const V_NO_SIDECAR = 'v9.8.7'; // sidecar answers 404
+const V_BAD_SIDECAR = 'v9.8.8'; // sidecar holds no checksum
+// Fake legacy-range tags (core <= 1.0.26, never published), pinned only through
+// the toolchain's legacyPinnedSha256 test seam
+const V_LEGACY_FAKE = 'v0.9.1';
+const V_LEGACY_LOST = 'v0.9.2'; // a concurrent installer wins the link
+
+const MAX_ASSET_BYTES = 256 * 1024 * 1024;
+const MAX_SIDECAR_BYTES = 4 * 1024;
+const TAG_PREFIX = 'Invalid Aiken release tag: ';
 
 function assetOf(tag: string): AikenReleaseAsset {
   return aikenReleaseAsset(tag, process.platform, process.arch);
@@ -163,6 +183,10 @@ interface Route {
   status: number;
   body?: Buffer | string;
   location?: string;
+  /** Extra response headers, e.g. an explicit content-length. */
+  headers?: Record<string, string>;
+  /** Answers the request itself; status, body, location and headers are ignored. */
+  handler?: (req: http.IncomingMessage, res: http.ServerResponse) => void;
 }
 
 interface FakeReleases {
@@ -185,12 +209,17 @@ async function startFakeReleases(): Promise<FakeReleases> {
       res.end('Not Found');
       return;
     }
+    if (route.handler) {
+      route.handler(req, res);
+      return;
+    }
     if (route.location) {
       res.writeHead(route.status, { location: route.location });
       res.end();
       return;
     }
-    res.writeHead(route.status, { 'content-type': 'application/octet-stream' });
+    // No content-length unless the route sets one: Node then sends the body chunked
+    res.writeHead(route.status, { 'content-type': 'application/octet-stream', ...route.headers });
     res.end(route.body ?? '');
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -280,6 +309,10 @@ function rejectedWith<T>(outcome: Outcome<T>, prefix: string): boolean {
   return outcome.status === 'error' && outcome.error.message.startsWith(prefix);
 }
 
+function rejectedWithIncluding<T>(outcome: Outcome<T>, prefix: string, text: string): boolean {
+  return rejectedWith(outcome, prefix) && outcome.status === 'error' && outcome.error.message.includes(text);
+}
+
 /** The compiler that actually produced the plutus.json in `dir`. */
 async function compilerIn(dir: string): Promise<string> {
   try {
@@ -337,8 +370,14 @@ async function testAikenToolchain(): Promise<boolean> {
     const sentinel = await sentinelOf(home);
     const urlOf = (tag: string) => `/${tag}/${assetOf(tag).assetName}`;
 
-    /** Serve `tag` (optionally behind a 302) with a sidecar of `sidecarHex` (default: the right one). */
-    async function serve(tag: string, opts: { redirect?: boolean; sidecarHex?: string; version?: string } = {}) {
+    /**
+     * Serve `tag` (optionally behind a 302) with a sidecar of `sidecarHex` (default: the right one).
+     * `sidecar` maps that sidecar line to its route; null leaves the sidecar unserved (404).
+     */
+    async function serve(
+      tag: string,
+      opts: { redirect?: boolean; sidecarHex?: string; version?: string; sidecar?: (line: string) => Route | null } = {}
+    ) {
       const archive = await buildArchive(root, tag, opts.version ?? `${tag}+fake`);
       const assetPath = urlOf(tag);
       const blobPath = `/blob${assetPath}`;
@@ -348,11 +387,28 @@ async function testAikenToolchain(): Promise<boolean> {
       } else {
         server.route(assetPath, { status: 200, body: archive });
       }
-      server.route(`${assetPath}.sha256`, {
-        status: 200,
-        body: `${opts.sidecarHex ?? sha256(archive)} *${assetOf(tag).assetName}\n`,
-      });
-      return { assetPath, blobPath, sidecarPath: `${assetPath}.sha256` };
+      const line = `${opts.sidecarHex ?? sha256(archive)} *${assetOf(tag).assetName}\n`;
+      const sidecar = opts.sidecar ? opts.sidecar(line) : { status: 200, body: line };
+      if (sidecar) server.route(`${assetPath}.sha256`, sidecar);
+      return { archive, assetPath, blobPath, sidecarPath: `${assetPath}.sha256` };
+    }
+
+    /** Nothing installed for `tag`: its binary path is not a regular file and no .download-* is left. */
+    async function nothingInstalled(tag: string): Promise<{ ok: boolean; detail: string }> {
+      const installed = await isRegularFile(binaryOf(home, tag));
+      const leftovers = await downloadLeftovers(home);
+      return {
+        ok: !installed && leftovers.length === 0,
+        detail: `${binaryOf(home, tag)} ${installed ? 'is a regular file' : 'absent'}, leftovers ${list(leftovers)}`,
+      };
+    }
+
+    /** One fresh workdir and toolchain per guard scenario, on the shared fixture home. */
+    async function guardScenario(name: string) {
+      const dir = await workDir(name);
+      const { exec } = recordingExec(home);
+      const tc = createAikenToolchain({ home, execFile: exec, releaseBaseUrl });
+      return { dir, tc };
     }
 
     // --- S1: two present versions on two instances; nothing shared is touched ---
@@ -646,6 +702,11 @@ async function testAikenToolchain(): Promise<boolean> {
       for (const tag of ['--help', 'v1.1.21+abc', ' v9.9.1', '9.9.1', '../v9.9.1', 'v9.9.1/../../x', '..', '']) {
         const outcome = await withinStall(tc.installAndBuild(tag, ['build'], dir), `S5 ${JSON.stringify(tag)}`);
         ok = check(`S5 guard: ${JSON.stringify(tag)} is rejected (${describe(outcome)})`, outcome.status === 'error') && ok;
+        // By the outer guard itself, not by a later check inside the lock
+        ok = check(
+          `S5 guard: ${JSON.stringify(tag)} is rejected with "${TAG_PREFIX}" (${describe(outcome)})`,
+          rejectedWith(outcome, TAG_PREFIX)
+        ) && ok;
       }
       const requests = server.requests.slice(before);
       ok = check(
@@ -653,6 +714,291 @@ async function testAikenToolchain(): Promise<boolean> {
         calls.length === 0
       ) && ok;
       ok = check(`S5 guard: zero requests for rejected tags (got ${list(requests)})`, requests.length === 0) && ok;
+    }
+
+    // --- S6: the release-tag guard runs before the lock: a held lock cannot delay a rejection ---
+    {
+      const dirHeld = await workDir('s6-held');
+      const dirGuard = await workDir('s6-guard');
+      const recorded = recordingExec(home);
+      let enter!: () => void;
+      const entered = new Promise<void>(resolve => { enter = resolve; });
+      let releaseHeld!: () => void;
+      const held = new Promise<void>(resolve => { releaseHeld = resolve; });
+      // The held build blocks inside the lock; the recording exec (and its refusal) still runs it
+      const exec: ExecFileFn = async (file, args, options) => {
+        if (options.cwd === dirHeld) {
+          enter();
+          await held;
+        }
+        return recorded.exec(file, args, options);
+      };
+      const tc = createAikenToolchain({ home, execFile: exec, releaseBaseUrl });
+      let heldSettled = false;
+      const pHeld = withinStall(tc.installAndBuild(V_A, ['build'], dirHeld), 'S6 held build');
+      void pHeld.then(() => { heldSettled = true; });
+      try {
+        await Promise.race([entered, pHeld]);
+        const buildEntered = !heldSettled;
+        const pGuard = withinStall(tc.installAndBuild('--help', ['build'], dirGuard), 'S6 guarded tag');
+        let timer: NodeJS.Timeout | undefined;
+        const guardOutcome = await Promise.race([
+          pGuard,
+          new Promise<Outcome<string>>(resolve => {
+            timer = setTimeout(() => resolve({ status: 'stalled' }), 2000);
+          }),
+        ]);
+        clearTimeout(timer);
+        const heldUnsettled = !heldSettled;
+        const guardSeen = guardOutcome.status === 'stalled' ? 'still pending after 2000 ms' : describe(guardOutcome);
+
+        ok = check(
+          `S6 guard before lock: "--help" rejects with "${TAG_PREFIX}" within 2000 ms while the lock is held (held build entered: ${buildEntered}; guard ${guardSeen}; held build unsettled: ${heldUnsettled})`,
+          buildEntered && rejectedWith(guardOutcome, TAG_PREFIX) && heldUnsettled
+        ) && ok;
+      } finally {
+        releaseHeld();
+      }
+      const heldOutcome = await pHeld;
+      const seen = await compilerIn(dirHeld);
+      ok = check(
+        `S6 guard before lock: the released build resolves with ${V_A}+fake (${describe(heldOutcome)}, observed ${seen})`,
+        heldOutcome.status === 'ok' && seen === `${V_A}+fake`
+      ) && ok;
+    }
+
+    // --- R1: a download redirected to another protocol is refused before the sidecar ---
+    {
+      const { dir, tc } = await guardScenario('r1');
+      const { assetPath, sidecarPath } = await serve(V_REDIRECT);
+      const assetUrl = `${releaseBaseUrl}${assetPath}`;
+      const realFetch = globalThis.fetch;
+      // As if the asset request had been redirected to https (the guard reads only response.url)
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const response = await realFetch(input, init);
+        if (String(input) === assetUrl) {
+          Object.defineProperty(response, 'url', { value: assetUrl.replace(/^http:/, 'https:') });
+        }
+        return response;
+      }) as typeof fetch;
+      let outcome: Outcome<string>;
+      const before = server.requests.length;
+      try {
+        outcome = await withinStall(tc.installAndBuild(V_REDIRECT, ['build'], dir), 'R1');
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+      const requests = server.requests.slice(before);
+      const installed = await nothingInstalled(V_REDIRECT);
+      ok = check(
+        `R1 redirect protocol: rejects with "Failed to install Aiken version ${V_REDIRECT}:" and "was redirected to another protocol" (${describe(outcome)})`,
+        rejectedWithIncluding(outcome, `Failed to install Aiken version ${V_REDIRECT}:`, 'was redirected to another protocol')
+      ) && ok;
+      ok = check(
+        `R1 redirect protocol: no ${sidecarPath} request (got ${list(requests)})`,
+        !requests.includes(sidecarPath)
+      ) && ok;
+      ok = check(`R1 redirect protocol: nothing installed (${installed.detail})`, installed.ok) && ok;
+    }
+
+    // --- C1: an asset declaring more than 256 MiB is refused on its header ---
+    {
+      const { dir, tc } = await guardScenario('c1');
+      const declared = MAX_ASSET_BYTES + 1;
+      server.route(urlOf(V_DECLARED), {
+        status: 200,
+        handler: (_req, res) => {
+          res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(declared) });
+          // A few bytes, then the connection drops: only the declared size can refuse it
+          res.write(Buffer.alloc(10), () => res.destroy());
+        },
+      });
+      const outcome = await withinStall(tc.installAndBuild(V_DECLARED, ['build'], dir), 'C1');
+      const installed = await nothingInstalled(V_DECLARED);
+      const text = `${declared} bytes exceeds the ${MAX_ASSET_BYTES}-byte limit`;
+      ok = check(
+        `C1 declared asset cap: rejects with "${text}" (${describe(outcome)})`,
+        rejectedWithIncluding(outcome, `Failed to install Aiken version ${V_DECLARED}:`, text)
+      ) && ok;
+      ok = check(`C1 declared asset cap: nothing installed (${installed.detail})`, installed.ok) && ok;
+    }
+
+    // --- C2: a chunked asset streaming past 256 MiB is cut off ---
+    {
+      const { dir, tc } = await guardScenario('c2');
+      const size = MAX_ASSET_BYTES + 1;
+      let sent = 0;
+      server.route(urlOf(V_STREAMED), {
+        status: 200,
+        handler: (_req, res) => {
+          res.writeHead(200, { 'content-type': 'application/octet-stream' });
+          const block = Buffer.alloc(64 * 1024);
+          let closed = false;
+          res.on('close', () => { closed = true; });
+          // Honour backpressure, stop when the client goes away
+          const pump = () => {
+            while (!closed && sent < size) {
+              const n = Math.min(block.length, size - sent);
+              sent += n;
+              const more = res.write(n === block.length ? block : block.subarray(0, n));
+              if (sent === size) {
+                res.end();
+                return;
+              }
+              if (!more) {
+                res.once('drain', pump);
+                return;
+              }
+            }
+          };
+          pump();
+        },
+      });
+      const outcome = await withinStall(tc.installAndBuild(V_STREAMED, ['build'], dir), 'C2');
+      const installed = await nothingInstalled(V_STREAMED);
+      const text = `body exceeds the ${MAX_ASSET_BYTES}-byte limit`;
+      ok = check(
+        `C2 streamed asset cap: rejects with "${text}" (${describe(outcome)}; server wrote ${sent} of ${size} bytes)`,
+        rejectedWithIncluding(outcome, `Failed to install Aiken version ${V_STREAMED}:`, text)
+      ) && ok;
+      ok = check(`C2 streamed asset cap: nothing installed (${installed.detail})`, installed.ok) && ok;
+    }
+
+    // --- C3: a correct sidecar padded past 4 KiB is refused ---
+    {
+      const { dir, tc } = await guardScenario('c3');
+      await serve(V_SIDECAR_OVER, {
+        sidecar: line => ({ status: 200, body: line.padEnd(MAX_SIDECAR_BYTES + 1, ' ') }),
+      });
+      const outcome = await withinStall(tc.installAndBuild(V_SIDECAR_OVER, ['build'], dir), 'C3');
+      const installed = await nothingInstalled(V_SIDECAR_OVER);
+      const text = `exceeds the ${MAX_SIDECAR_BYTES}-byte limit`;
+      ok = check(
+        `C3 sidecar over cap: a ${MAX_SIDECAR_BYTES + 1}-byte sidecar rejects with "${text}" (${describe(outcome)})`,
+        rejectedWithIncluding(outcome, `Failed to install Aiken version ${V_SIDECAR_OVER}:`, text)
+      ) && ok;
+      ok = check(`C3 sidecar over cap: nothing installed (${installed.detail})`, installed.ok) && ok;
+    }
+
+    // --- C4a/C4b: a correct sidecar of exactly 4 KiB is accepted, chunked or declared ---
+    for (const [label, tag, declared] of [
+      ['C4a', V_SIDECAR_CHUNKED, false],
+      ['C4b', V_SIDECAR_DECLARED, true],
+    ] as Array<[string, string, boolean]>) {
+      const { dir, tc } = await guardScenario(label.toLowerCase());
+      await serve(tag, {
+        sidecar: line => ({
+          status: 200,
+          body: line.padEnd(MAX_SIDECAR_BYTES, ' '),
+          headers: declared ? { 'content-length': String(MAX_SIDECAR_BYTES) } : undefined,
+        }),
+      });
+      const outcome = await withinStall(tc.installAndBuild(tag, ['build'], dir), label);
+      const seen = await compilerIn(dir);
+      ok = check(
+        `${label} sidecar at cap: a ${MAX_SIDECAR_BYTES}-byte sidecar (${declared ? `content-length: ${MAX_SIDECAR_BYTES}` : 'chunked'}) resolves with the downloaded compiler (${describe(outcome)}, observed ${seen})`,
+        outcome.status === 'ok' && seen === `${tag}+fake`
+      ) && ok;
+    }
+
+    // --- K1: a missing sidecar refuses the install ---
+    {
+      const { dir, tc } = await guardScenario('k1');
+      const { assetPath } = await serve(V_NO_SIDECAR, { sidecar: () => null });
+      const outcome = await withinStall(tc.installAndBuild(V_NO_SIDECAR, ['build'], dir), 'K1');
+      const installed = await nothingInstalled(V_NO_SIDECAR);
+      const text = `${releaseBaseUrl}${assetPath}.sha256 answered HTTP 404`;
+      ok = check(
+        `K1 missing sidecar: rejects with "${text}" (${describe(outcome)})`,
+        rejectedWithIncluding(outcome, `Failed to install Aiken version ${V_NO_SIDECAR}:`, text)
+      ) && ok;
+      ok = check(`K1 missing sidecar: nothing installed (${installed.detail})`, installed.ok) && ok;
+    }
+
+    // --- K2: a sidecar without a SHA-256 refuses the install ---
+    {
+      const { dir, tc } = await guardScenario('k2');
+      await serve(V_BAD_SIDECAR, {
+        sidecar: () => ({ status: 200, body: `not-a-checksum *${assetOf(V_BAD_SIDECAR).assetName}\n` }),
+      });
+      const outcome = await withinStall(tc.installAndBuild(V_BAD_SIDECAR, ['build'], dir), 'K2');
+      const installed = await nothingInstalled(V_BAD_SIDECAR);
+      ok = check(
+        `K2 malformed sidecar: rejects with "holds no SHA-256 checksum" (${describe(outcome)})`,
+        rejectedWithIncluding(outcome, `Failed to install Aiken version ${V_BAD_SIDECAR}:`, 'holds no SHA-256 checksum')
+      ) && ok;
+      ok = check(`K2 malformed sidecar: nothing installed (${installed.detail})`, installed.ok) && ok;
+    }
+
+    // --- L1/L2: legacy (single-file) installs, pinned through the legacyPinnedSha256 seam ---
+    if (process.platform !== 'linux' || process.arch !== 'x64') {
+      // The pinned integrity path exists only for linux x64
+      console.log(`SKIP: L1 legacy install (pinned legacy releases are linux x64 only; host is ${process.platform} ${process.arch})`);
+      console.log(`SKIP: L2 legacy collision (pinned legacy releases are linux x64 only; host is ${process.platform} ${process.arch})`);
+    } else {
+      // Archives first (single member `aiken`, the legacy layout), then the toolchains that pin them
+      const legacyServed = await serve(V_LEGACY_FAKE);
+      const lostServed = await serve(V_LEGACY_LOST);
+      const legacyPinnedSha256 = {
+        [V_LEGACY_FAKE]: sha256(legacyServed.archive),
+        [V_LEGACY_LOST]: sha256(lostServed.archive),
+      };
+
+      // L1: installed by hard link, verified against the injected pin, never a sidecar
+      {
+        const dir = await workDir('l1');
+        const { exec } = recordingExec(home);
+        const tc = createAikenToolchain({ home, execFile: exec, releaseBaseUrl, legacyPinnedSha256 });
+        const before = server.requests.length;
+        const outcome = await withinStall(tc.installAndBuild(V_LEGACY_FAKE, ['build'], dir), 'L1');
+        const requests = server.requests.slice(before);
+        const seen = await compilerIn(dir);
+        const binary = path.join(home, '.aiken', 'versions', V_LEGACY_FAKE, 'aiken');
+        const leftovers = await downloadLeftovers(home);
+        const finalSentinel = await sentinelOf(home);
+
+        ok = check(
+          `L1 legacy install: resolves with the downloaded compiler (${describe(outcome)}, observed ${seen})`,
+          outcome.status === 'ok' && seen === `${V_LEGACY_FAKE}+fake`
+        ) && ok;
+        ok = check(
+          `L1 legacy install: requests are exactly ${legacyServed.assetPath} (got ${list(requests)})`,
+          JSON.stringify(requests) === JSON.stringify([legacyServed.assetPath])
+        ) && ok;
+        ok = check(`L1 legacy install: ${binary} is a regular file`, await isRegularFile(binary)) && ok;
+        ok = check(`L1 legacy install: no .download-* left under versions/ (got ${list(leftovers)})`, leftovers.length === 0) && ok;
+        ok = check(`L1 legacy install: sentinel unchanged (before ${sentinel}, after ${finalSentinel})`, finalSentinel === sentinel) && ok;
+      }
+
+      // L2: a concurrent installer wins the link: its binary is used and kept, never replaced
+      {
+        const dir = await workDir('l2');
+        const planted = `${V_LEGACY_LOST}+planted`;
+        const plantedScript = fakeAiken(planted, writesPlutusJson(planted));
+        const binary = path.join(home, '.aiken', 'versions', V_LEGACY_LOST, 'aiken');
+        let plantedAfterTar = false;
+        const { exec } = recordingExec(home, async record => {
+          if (path.basename(record.file) === 'tar' && !plantedAfterTar) {
+            plantedAfterTar = true;
+            await writeExecutable(binary, plantedScript);
+          }
+        });
+        const tc = createAikenToolchain({ home, execFile: exec, releaseBaseUrl, legacyPinnedSha256 });
+        const outcome = await withinStall(tc.installAndBuild(V_LEGACY_LOST, ['build'], dir), 'L2');
+        const seen = await compilerIn(dir);
+        const kept = await fs.readFile(binary, 'utf-8').catch(error => `<${error instanceof Error ? error.message : String(error)}>`);
+        const leftovers = await downloadLeftovers(home);
+
+        ok = check(
+          `L2 legacy collision: resolves with the winner's binary (planted after tar: ${plantedAfterTar}; ${describe(outcome)}, observed ${seen})`,
+          plantedAfterTar && outcome.status === 'ok' && seen === planted
+        ) && ok;
+        ok = check(
+          `L2 legacy collision: ${binary} still holds the planted marker ${planted}`,
+          kept === plantedScript
+        ) && ok;
+        ok = check(`L2 legacy collision: no .download-* left under versions/ (got ${list(leftovers)})`, leftovers.length === 0) && ok;
+      }
     }
   } finally {
     await server.close();
