@@ -286,7 +286,7 @@ async function manualFlow(browser, o, e, oracle, build) {
     await page.goto(`${o.feUrl}/verify`);
     await page.getByPlaceholder('https://github.com/username/repo').fill(o.sourceUrl);
     await page.getByPlaceholder('abc123def456...').fill(o.commit);
-    await page.locator('main select').first().selectOption(VERSION);
+    await page.locator('#aiken-version').fill(VERSION);
     await page.getByPlaceholder('e.g., contracts/my-project').fill(o.sourcePath);
     if (e.env !== '') await page.getByPlaceholder('e.g., mainnet').fill(e.env);
     await page.locator('main textarea').first().fill(build.applied_hashes[build.applied_hashes.length - 1]);
@@ -451,7 +451,7 @@ async function deeplinkFlow(browser, o, e, oracle, build, exp) {
       commit: await val(page.getByPlaceholder('abc123def456...')),
       path: await val(page.getByPlaceholder('e.g., contracts/my-project')),
       env: await val(page.getByPlaceholder('e.g., mainnet')),
-      version: await val(page.locator('main select')),
+      version: await val(page.locator('#aiken-version')),
       hashes: await val(page.locator('main textarea')),
     };
     const want = { repo: o.sourceUrl, commit: o.commit, path: o.sourcePath, env: e.env, version: VERSION, hashes: finalHash };

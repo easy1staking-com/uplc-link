@@ -18,7 +18,13 @@ import type {
   ParameterState,
 } from "@/lib/blueprint/types";
 import type { VerificationResult, ValidatorParams } from "@/lib/types/verification";
-import { toAikenReleaseTag, fetchAikenReleaseTags, FALLBACK_AIKEN_VERSIONS } from "@/lib/aiken-version";
+import {
+  toAikenReleaseTag,
+  loadAikenVersionSuggestions,
+  describeAikenVersionInput,
+  aikenVersionListNotice,
+  type AikenVersionSource,
+} from "@/lib/aiken-version";
 import type { VerificationResponseDto } from "@/lib/types/registry";
 
 function VerifyPageContent() {
@@ -33,11 +39,12 @@ function VerifyPageContent() {
   // Form state
   const [repoUrl, setRepoUrl] = useState("");
   const [commitHash, setCommitHash] = useState("");
-  const [aikenVersion, setAikenVersion] = useState("");
+  const [aikenVersionInput, setAikenVersionInput] = useState("");
   const [sourcePath, setSourcePath] = useState("");
   const [env, setEnv] = useState("");
   const [aikenVersions, setAikenVersions] = useState<string[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
+  const [versionSource, setVersionSource] = useState<AikenVersionSource | null>(null);
   const [expectedHashes, setExpectedHashes] = useState("");
   const [parsedExpectedHashes, setParsedExpectedHashes] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
@@ -59,22 +66,27 @@ function VerifyPageContent() {
 
   const definitions: BlueprintDefinitions = verificationResult?.definitions ?? {};
 
+  // The typed version, interpreted once per render. aikenTag is the canonical
+  // release tag (or null) — the only form that is ever posted or submitted.
+  const versionInput = describeAikenVersionInput(aikenVersionInput, aikenVersions, versionSource);
+  const aikenTag = versionInput.tag;
+
   // Fetch Aiken versions on mount
   useEffect(() => {
     const fetchVersions = async () => {
       setLoadingVersions(true);
       try {
-        const versions = await fetchAikenReleaseTags();
+        const { versions, source, error } = await loadAikenVersionSuggestions();
+        if (error) {
+          console.error("Failed to fetch Aiken versions:", error);
+        }
         setAikenVersions(versions);
+        setVersionSource(source);
         // Functional update: the deep-link prefill may have already set a
         // version by the time this fetch resolves — never clobber it.
         if (versions.length > 0) {
-          setAikenVersion(prev => prev || versions[0]);
+          setAikenVersionInput(prev => prev || versions[0]);
         }
-      } catch (error) {
-        console.error("Failed to fetch Aiken versions:", error);
-        setAikenVersions([...FALLBACK_AIKEN_VERSIONS]);
-        setAikenVersion(prev => prev || FALLBACK_AIKEN_VERSIONS[0]);
       } finally {
         setLoadingVersions(false);
       }
@@ -102,10 +114,10 @@ function VerifyPageContent() {
         setEnv(data.env || "");
 
         // Normalize stored compiler version (may carry "+<build>" metadata,
-        // e.g. "v1.1.21+42babe5") to the release tag the dropdown lists
+        // e.g. "v1.1.21+42babe5") to the release tag form
         const version = toAikenReleaseTag(data.compilerVersion);
         if (version) {
-          setAikenVersion(version);
+          setAikenVersionInput(version);
         }
 
         // Build expected hashes from stored scripts (deduplicated)
@@ -127,7 +139,7 @@ function VerifyPageContent() {
         } else {
           setDeepLinkError(
             `Stored compiler version "${data.compilerVersion}" is not a recognized Aiken release; ` +
-            `select the version manually before verifying.`
+            `enter the release tag manually before verifying.`
           );
         }
       } catch (error) {
@@ -404,6 +416,7 @@ function VerifyPageContent() {
   };
 
   const handleVerify = async () => {
+    if (!aikenTag) return;
     setStatus("verifying");
     setVerificationResult(null);
 
@@ -414,7 +427,7 @@ function VerifyPageContent() {
         body: JSON.stringify({
           repoUrl,
           commitHash,
-          aikenVersion,
+          aikenVersion: aikenTag,
           sourcePath: sourcePath || undefined,
           env: env.trim() || undefined,
         }),
@@ -463,12 +476,12 @@ function VerifyPageContent() {
 
   // Auto-verify when form is populated from deep link
   useEffect(() => {
-    if (shouldAutoVerify && repoUrl && commitHash && aikenVersion && expectedHashes) {
+    if (shouldAutoVerify && repoUrl && commitHash && aikenTag && expectedHashes) {
       setShouldAutoVerify(false);
       handleVerify();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldAutoVerify, repoUrl, commitHash, aikenVersion, expectedHashes]);
+  }, [shouldAutoVerify, repoUrl, commitHash, aikenTag, expectedHashes]);
 
   // Loading state for deep link
   if (deepLinkLoading) {
@@ -556,29 +569,36 @@ function VerifyPageContent() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Aiken Version</label>
-            <select
-              value={aikenVersion}
-              onChange={(e) => setAikenVersion(e.target.value)}
-              disabled={loadingVersions}
-              className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded focus:outline-none focus:border-zinc-600"
-            >
-              {loadingVersions ? (
-                <option>Loading versions...</option>
-              ) : (
-                <>
-                  <option value="">Select Aiken version...</option>
-                  {aikenVersion && !aikenVersions.includes(aikenVersion) && (
-                    <option value={aikenVersion}>{aikenVersion}</option>
-                  )}
-                  {aikenVersions.map((version) => (
-                    <option key={version} value={version}>
-                      {version}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
+            <label htmlFor="aiken-version" className="block text-sm font-medium mb-2">Aiken Version</label>
+            <input
+              id="aiken-version"
+              type="text"
+              list="aiken-version-suggestions"
+              value={aikenVersionInput}
+              onChange={(e) => setAikenVersionInput(e.target.value)}
+              placeholder="e.g., v1.1.21"
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={versionInput.error !== null}
+              className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded focus:outline-none focus:border-zinc-600 font-mono"
+            />
+            <datalist id="aiken-version-suggestions">
+              {aikenVersions.map((version) => (
+                <option key={version} value={version} />
+              ))}
+            </datalist>
+            {loadingVersions && (
+              <p className="text-xs text-gray-500 mt-1">Loading release suggestions...</p>
+            )}
+            {aikenVersionListNotice(versionSource) && (
+              <p className="text-xs text-gray-500 mt-1">{aikenVersionListNotice(versionSource)}</p>
+            )}
+            {versionInput.error && (
+              <p className="text-xs text-red-400 mt-1">{versionInput.error}</p>
+            )}
+            {versionInput.notices.map((notice) => (
+              <p key={notice} className="text-xs text-gray-400 mt-1">{notice}</p>
+            ))}
           </div>
 
           <div>
@@ -628,7 +648,7 @@ function VerifyPageContent() {
 
           <button
             onClick={handleVerify}
-            disabled={status === "verifying" || !repoUrl || !commitHash || !aikenVersion || !expectedHashes}
+            disabled={status === "verifying" || !repoUrl || !commitHash || !aikenTag || !expectedHashes}
             className="w-full px-6 py-3 bg-white text-black font-medium rounded hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
           >
             {status === "verifying" ? "Verifying..." : "Verify Contract"}
@@ -903,7 +923,7 @@ function VerifyPageContent() {
                     verificationData={{
                       repoUrl,
                       commitHash,
-                      aikenVersion,
+                      aikenVersion: aikenTag ?? "",
                       sourcePath,
                       env: env.trim() || undefined,
                       expectedHashes,

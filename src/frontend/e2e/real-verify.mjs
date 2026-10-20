@@ -71,8 +71,7 @@ try {
   const byLabel = t => page.locator(`xpath=//label[contains(., "${t}")]/following::input[1]`).first();
   await byLabel('Repository').fill('https://github.com/easy1staking-com/cardano-recurring-payment');
   await byLabel('Commit').fill('35f1a0d51c8663782ab052f869d5c82b756e8615');
-  await page.waitForFunction(() => document.querySelector('select')?.options.length > 2, { timeout: 20000 });
-  await page.selectOption('select', 'v1.1.3');
+  await page.fill('#aiken-version', 'v1.1.3');
   await page.fill('textarea', 'd91724ab5029cf78ec8ba07d0eb1a8447e0fe1b7c9e60e0e2d1f0b1c');
   await page.click('button:has-text("Verify")');
 

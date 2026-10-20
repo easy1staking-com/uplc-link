@@ -14,6 +14,7 @@
  * than one page.
  */
 
+import * as av from '../lib/aiken-version';
 import { fetchAikenReleaseTags, FALLBACK_AIKEN_VERSIONS, toAikenReleaseTag } from '../lib/aiken-version';
 
 /** Fake releases API: paginates like GitHub, records the pages requested. */
@@ -122,8 +123,137 @@ async function testAikenVersions(): Promise<boolean> {
   return ok;
 }
 
-if (require.main === module) {
-  testAikenVersions().then(ok => process.exit(ok ? 0 : 1));
+/** Run one new check; a thrown error is a FAILURE line, not an abort. */
+async function guarded(name: string, fn: () => unknown | Promise<unknown>): Promise<boolean> {
+  try {
+    return check(name, Boolean(await fn()));
+  } catch (e) {
+    console.log(`❌ FAILURE: ${name} (threw: ${e instanceof Error ? e.message : String(e)})`);
+    return false;
+  }
 }
 
-export { testAikenVersions };
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+const NOT_IN_LIST = (t: string) =>
+  `${t} is not in GitHub's release list; verification will fail if it has no published release.`;
+const REJECTION = (x: string) =>
+  `Not an Aiken release tag: "${x}". Expected a tag like v1.1.21 or v1.0.29-alpha.`;
+const FALLBACK_NOTICE =
+  'Could not load the release list from GitHub, so the suggestions are a short offline list. You can type any Aiken release tag.';
+
+// The new API is read off the namespace so an unmodified lib yields undefined
+// (a FAILURE per check) instead of a compile-time abort.
+const lib = av as unknown as {
+  loadAikenVersionSuggestions: (f?: typeof fetch) => Promise<{ versions: string[]; source: string; error?: unknown }>;
+  describeAikenVersionInput: (
+    i: string,
+    s: readonly string[],
+    src: 'github' | 'fallback' | null
+  ) => { tag: string | null; error: string | null; notices: string[] };
+  aikenVersionListNotice: (src: 'github' | 'fallback' | null) => string | null;
+};
+const describe = (i: string, s: readonly string[] = [], src: 'github' | 'fallback' | null = null) =>
+  lib.describeAikenVersionInput(i, s, src);
+
+async function testTypedAikenVersion(): Promise<boolean> {
+  let ok = true;
+
+  // --- suggestion source ---
+  const netErr = new TypeError('Failed to fetch');
+  const rejecting = (async () => {
+    throw netErr;
+  }) as unknown as typeof fetch;
+  ok = (await guarded('unreachable API: fallback source, FALLBACK list, the TypeError', async () => {
+    const r = await lib.loadAikenVersionSuggestions(rejecting);
+    return r.source === 'fallback' && same(r.versions, FALLBACK_AIKEN_VERSIONS) && r.error === netErr;
+  })) && ok;
+  const rateLimited = (async () => ({ ok: false, status: 403 })) as unknown as typeof fetch;
+  ok = (await guarded('rate-limited API (403): resolves to the fallback', async () => {
+    const r = await lib.loadAikenVersionSuggestions(rateLimited);
+    return r.source === 'fallback' && same(r.versions, FALLBACK_AIKEN_VERSIONS) && r.error instanceof Error;
+  })) && ok;
+  const nonArray = (async () => ({ ok: true, status: 200, json: async () => ({ message: 'x' }) })) as unknown as typeof fetch;
+  ok = (await guarded('non-array JSON body: resolves to the fallback', async () => {
+    const r = await lib.loadAikenVersionSuggestions(nonArray);
+    return r.source === 'fallback' && same(r.versions, FALLBACK_AIKEN_VERSIONS) && r.error instanceof Error;
+  })) && ok;
+  ok = (await guarded('reachable API: source github with exactly the fetched versions', async () => {
+    const tags = ['v1.1.24', 'v1.1.15', 'v1.0.26-alpha'];
+    const r = await lib.loadAikenVersionSuggestions(fakeGitHub(tags).impl);
+    return r.source === 'github' && same(r.versions, tags);
+  })) && ok;
+
+  // --- acceptance pin ---
+  ok = check('acceptance pin: v1.1.15 is NOT in the fallback list', !(FALLBACK_AIKEN_VERSIONS as readonly string[]).includes('v1.1.15')) && ok;
+  ok = (await guarded('acceptance pin: v1.1.15 under the fallback list is accepted, no notices', () => {
+    const d = describe('v1.1.15', FALLBACK_AIKEN_VERSIONS, 'fallback');
+    return d.tag === 'v1.1.15' && d.error === null && d.notices.length === 0;
+  })) && ok;
+
+  // --- typed acceptance ---
+  ok = (await guarded("typed: '  v1.1.21  ' -> v1.1.21, no notices", () => {
+    const d = describe('  v1.1.21  ');
+    return d.tag === 'v1.1.21' && d.error === null && d.notices.length === 0;
+  })) && ok;
+  for (const raw of ['1.1.21', 'v1.1.21+42babe5']) {
+    ok = (await guarded(`typed: '${raw}' -> v1.1.21 with the Using-release-tag notice`, () => {
+      const d = describe(raw);
+      return d.tag === 'v1.1.21' && d.error === null && same(d.notices, ['Using release tag v1.1.21.']);
+    })) && ok;
+  }
+  ok = (await guarded("typed: 'v1.0.29-alpha' -> itself", () => describe('v1.0.29-alpha').tag === 'v1.0.29-alpha' && describe('v1.0.29-alpha').notices.length === 0)) && ok;
+  ok = (await guarded('deep-link shape: toAikenReleaseTag(v1.1.21+42babe5) -> v1.1.21, no notices', () => {
+    const d = describe(toAikenReleaseTag('v1.1.21+42babe5')!);
+    return d.tag === 'v1.1.21' && d.notices.length === 0;
+  })) && ok;
+
+  // --- typed rejection ---
+  for (const raw of ['', '   ']) {
+    ok = (await guarded(`blank '${raw}': no tag, no error, no notices`, () => {
+      const d = describe(raw);
+      return d.tag === null && d.error === null && d.notices.length === 0;
+    })) && ok;
+  }
+  const rejected = ['latest', 'v1.1', '1.1.x', '--help', 'v1.1.21/../x', 'v1.1.21 v1.1.22', 'v1.1.21;rm -rf /'];
+  for (const raw of rejected) {
+    ok = (await guarded(`rejects '${raw}' with the exact message`, () => {
+      const d = describe(raw);
+      return d.tag === null && d.error === REJECTION(raw.trim()) && d.notices.length === 0;
+    })) && ok;
+  }
+
+  // --- no drift from the server guard ---
+  const drift = [...rejected, '  v1.1.21  ', '1.1.21', 'v1.1.21+42babe5', 'v1.0.29-alpha'];
+  for (const raw of drift) {
+    ok = (await guarded(`no drift: '${raw}' tag equals toAikenReleaseTag`, () => describe(raw).tag === toAikenReleaseTag(raw))) && ok;
+  }
+
+  // --- GitHub-list note ---
+  const listed = ['v1.1.24', 'v1.1.21'];
+  ok = (await guarded("github source, 'v1.1.99' not listed: canonical tag plus the exact note", () => {
+    const d = describe('v1.1.99', listed, 'github');
+    return d.tag === 'v1.1.99' && d.notices.includes(NOT_IN_LIST('v1.1.99'));
+  })) && ok;
+  for (const src of ['fallback', null] as const) {
+    ok = (await guarded(`source ${src}: no not-in-list note (absence)`, () =>
+      !describe('v1.1.99', listed, src).notices.some(n => n.includes("not in GitHub's release list")))) && ok;
+  }
+  ok = (await guarded("github source, 'v1.1.21' listed: no notices", () => describe('v1.1.21', listed, 'github').notices.length === 0)) && ok;
+
+  // --- list notice ---
+  ok = (await guarded('list notice: exact text for fallback', () => lib.aikenVersionListNotice('fallback') === FALLBACK_NOTICE)) && ok;
+  ok = (await guarded('list notice: null for github and for null', () => lib.aikenVersionListNotice('github') === null && lib.aikenVersionListNotice(null) === null)) && ok;
+
+  return ok;
+}
+
+if (require.main === module) {
+  (async () => {
+    const a = await testAikenVersions();
+    const b = await testTypedAikenVersion();
+    process.exit(a && b ? 0 : 1);
+  })();
+}
+
+export { testAikenVersions, testTypedAikenVersion };
