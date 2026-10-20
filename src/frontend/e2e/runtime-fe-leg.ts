@@ -219,6 +219,9 @@ async function prepare(opts: Record<string, string>): Promise<void> {
           if (hexOf(v[i]) !== cbors[i]) return `param ${i}: ${hexOf(v[i])} != ${cbors[i]}`;
         }
 
+        // Mirrors buildRegistrySubmissionTx (lib/cardano/transaction-builder.ts), which
+        // cannot run here without a chain client; stage 7's `devnet replay-identity`
+        // checks the byte identity with E2E_DEVNET=1.
         const labelHex = TransactionMetadatum.toCBORHex(
           TransactionMetadatum.map(
             new Map([[1984n, TransactionMetadatum.array(
