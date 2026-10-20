@@ -49,7 +49,7 @@ not wired into CI — run them manually as needed.
   `E2E_BROWSER=1 bash e2e/runtime/run.sh` at the repo root against the FE
   container the run built; it needs `npm ci` here and Chromium and its headless
   shell for Playwright 1.62.1 installed once (see Install). Requests to other
-  origins are aborted; redirect hops are detected, not prevented. See
+  origins are aborted; redirect hops are not prevented, and are detected only when the other origin answers. See
   `e2e/runtime/README.md`.
 
 - **`runtime-devnet-leg.ts`** — devnet leg of the same runtime-image E2E (run

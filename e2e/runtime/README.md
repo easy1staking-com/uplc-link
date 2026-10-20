@@ -222,10 +222,14 @@ container only.
   a stand-in response. The route does not see everything: Playwright calls a
   route handler only for the first URL of a redirect chain, and not for
   requests a Service Worker handles. If an FE response redirected to another
-  origin, that hop would reach the network. It would not go unnoticed: the hop
-  is a new request to another origin that is not aborted, so
-  `browser no-blockfrost` fails (condition 3). Redirect hops are detected, not
-  prevented. `INFO blocked api.github.com` is expected (the version
+  origin, that hop would reach the network, because routes are not applied to
+  it. `browser no-blockfrost` catches such a hop only when the other origin
+  answers it (condition 3: a foreign request that finished or got a response)
+  or when its host contains `blockfrost` (condition 2). A hop whose connection
+  fails before any response looks exactly like an aborted request, so it
+  passes undetected even though the request has left the host. Redirect hops
+  are therefore not prevented, and detected only when answered. The FE has no
+  cross-origin redirect today. `INFO blocked api.github.com` is expected (the version
   dropdown then uses its built-in fallback list, which contains `v1.1.24`).
   There is no wallet, no Blockfrost and nothing is built, signed or submitted.
 - **Never clicked.** The only clicks are `Verify Contract`, `+ Add entry` and
