@@ -173,15 +173,6 @@ Validators can require parameters (e.g., policy IDs, stake keys). The parameteri
 **Implementation:**
 
 ```typescript
-// Cascading parameter resolution (validators can reference each other)
-const resolvedParams = params.map(param => {
-  if (param.useValidatorRef && param.referenceTo) {
-    const referencedHash = calculatedHashes[param.referenceTo];
-    return cborEncodeHash(referencedHash); // CBOR-encode the hash
-  }
-  return param.value; // User-provided value
-});
-
 // lib/blueprint/apply-params.ts (Evolution SDK UPLC under the hood)
 const { scriptCbor, hash } = applyPayloadsAndHash(compiledCode, payloads, plutusVersion);
 ```
