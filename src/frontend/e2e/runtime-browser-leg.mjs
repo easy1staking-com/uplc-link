@@ -33,6 +33,8 @@ const VERSION = 'v1.1.24';
 const PAYEE = 'addr_test1vrxumnwdehxumnwdehxumnwdehxumnwdehxumnwdehxumng5y82j7';
 const NOTE_B = 'Matched: 1 | Unmatched Actual: 0 | Unmatched Expected: 0';
 const VERIFY_TIMEOUT_MS = 600000;
+const STALE_HEADING = 'Inputs Changed Since Verification';
+const STALE_TAIL = '. Verify again to submit to the registry, or restore the verified values.';
 
 let failures = 0;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -247,6 +249,26 @@ async function checkSubmitGate(page) {
   return n === 0 ? null : `${n} button(s) named Submit to Registry`;
 }
 
+/**
+ * Edit one source field after verifying: the submit gate must give way to the
+ * stale card naming only `label`; restoring `original` must bring the gate back.
+ */
+async function checkEditGate(page, input, edited, original, label) {
+  await input.fill(edited);
+  let d = await visible(page.getByRole('heading', { name: STALE_HEADING, exact: true }), 'stale heading');
+  if (d) return d;
+  const notice = `Changed since this verification: ${label}${STALE_TAIL}`;
+  d = await visible(page.getByText(notice, { exact: true }), `notice "${notice}"`);
+  if (d) return d;
+  const n = await page.getByRole('heading', { name: 'Submit to Registry', exact: true }).count();
+  if (n !== 0) return `${n} Submit to Registry heading(s) while stale`;
+  await input.fill(original);
+  d = await checkSubmitGate(page);
+  if (d) return `after restore: ${d}`;
+  const s = await page.getByRole('heading', { name: STALE_HEADING, exact: true }).count();
+  return s === 0 ? null : `after restore: ${s} stale heading(s)`;
+}
+
 async function checkParams(page, oracle) {
   const bad = [];
   for (const p of oracle.parameters) {
@@ -282,7 +304,7 @@ async function manualFlow(browser, o, e, oracle, build) {
   const page = await context.newPage();
   const flow = { page, outDir: o.outDir, name: `manual-${e.name}` };
   const titles = oracle.parameters.map((p) => p.title);
-  const rest = ['manual-forms', 'manual-params', 'manual-hash', 'manual-submit-gate'];
+  const rest = ['manual-forms', 'manual-params', 'manual-hash', 'manual-submit-gate', 'manual-edit-gate'];
 
   let verified = false;
   await lab(flow, L('manual-raw'), async () => {
@@ -368,6 +390,15 @@ async function manualFlow(browser, o, e, oracle, build) {
 
   await lab(flow, L('manual-hash'), () => checkHash(page, build));
   await lab(flow, L('manual-submit-gate'), () => checkSubmitGate(page));
+  await lab(flow, L('manual-edit-gate'), () =>
+    checkEditGate(
+      page,
+      page.getByPlaceholder('abc123def456...'),
+      o.commit.slice(0, -1) + (o.commit.endsWith('0') ? '1' : '0'),
+      o.commit,
+      'Commit Hash',
+    ),
+  );
   await context.close();
 }
 
@@ -407,7 +438,7 @@ async function registryFlow(browser, o, e, build, exp) {
 
 async function deeplinkFlow(browser, o, e, oracle, build, exp) {
   const L = (n) => `browser ${n} ${e.name}`;
-  const all = ['deeplink-meta', 'deeplink-prefill', 'deeplink-params', 'deeplink-hash', 'deeplink-submit-gate'];
+  const all = ['deeplink-meta', 'deeplink-prefill', 'deeplink-params', 'deeplink-hash', 'deeplink-submit-gate', 'deeplink-edit-gate'];
   if (!exp) {
     for (const n of all) skipped(L(n), 'expected.json has no txHash for this env');
     return;
@@ -473,6 +504,9 @@ async function deeplinkFlow(browser, o, e, oracle, build, exp) {
     await lab(flow, L('deeplink-params'), () => checkParams(page, oracle));
     await lab(flow, L('deeplink-hash'), () => checkHash(page, build));
     await lab(flow, L('deeplink-submit-gate'), () => checkSubmitGate(page));
+    await lab(flow, L('deeplink-edit-gate'), () =>
+      checkEditGate(page, page.getByPlaceholder('e.g., mainnet'), e.env === '' ? 'mainnet' : '', e.env, 'Environment'),
+    );
   } else {
     for (const n of all.slice(2)) skipped(L(n), 'verification never completed');
   }

@@ -52,7 +52,9 @@ E2E_DEVNET=1 bash e2e/runtime/run.sh
    render, filling them through the real widgets (including the ADA-only `Value`
    typed as the explicit empty bytestring `0x`) makes each live per-parameter
    CBOR equal the oracle CBOR, and the result shows the oracle final hash with
-   `All Hashes Match!` and the registry submit gate. `/registry?hash=<final
+   `All Hashes Match!` and the registry submit gate. Editing a source field
+   after verifying replaces the submit gate with a re-verify notice, and
+   restoring it brings the gate back. `/registry?hash=<final
    hash>` renders the BE record and `Share Verification` yields
    `<FE origin>/verify?txHash=<tx>`. `/verify?txHash=<tx>` serves the
    server-rendered social meta, pre-fills the form from the BE record,
@@ -182,12 +184,14 @@ Browser labels (only with `E2E_BROWSER=1`, stage 6, printed by
 | `browser manual-params E` | after the inputs: each live per-parameter CBOR equals the oracle CBOR; `minimum`'s inputs read `0x`, `0x`, `2000000` |
 | `browser manual-hash E` | the Actual hash equals the oracle final hash; `All Hashes Match!` and the matched-count line are visible |
 | `browser manual-submit-gate E` | the `Submit to Registry` heading, the registered-count line and `Connect your wallet to submit` are visible and no `Submit to Registry` button exists |
+| `browser manual-edit-gate E` | after `manual-submit-gate`: changing the last character of the Commit Hash shows the `Inputs Changed Since Verification` heading and the notice naming only `Commit Hash`, and no `Submit to Registry` heading; restoring the commit brings back everything `manual-submit-gate` checks and removes the notice |
 | `browser registry-card E` | `/registry?hash=<final hash>` shows `Found 1 script`, `fixture.vault`, the `Parameterized` badge, the `env: preview` pill only for preview; `Share Verification` puts `<FE origin>/verify?txHash=<tx>` on the clipboard |
 | `browser deeplink-meta E` | with JavaScript disabled, `/verify?txHash=<tx>` serves `og:title` starting `<org>/<repo> @ <commit first 8>` and a description with the version, `1 script hash`, `VERIFIED` and (preview only) `(env: preview)` |
 | `browser deeplink-prefill E` | the form is pre-filled from the BE record (repo, commit, path, env, version `v1.1.24`, expected hash) and the pre-filled note is visible |
 | `browser deeplink-params E` | the eight forms hold the decoded stored parameters: live CBORs equal the oracle's, `minimum` reads `0x`, `0x`, `2000000` |
 | `browser deeplink-hash E` | as `manual-hash`, on the deep-link page |
 | `browser deeplink-submit-gate E` | as `manual-submit-gate`, on the deep-link page |
+| `browser deeplink-edit-gate E` | as `manual-edit-gate`, on the deep-link page, editing Environment (to `mainnet` for default, to empty for preview) and naming only `Environment` |
 | `browser no-blockfrost` | observed (independently of the route guard) across all contexts: at least one request, none with a host containing `blockfrost`, and every request to another origin emitted `requestfailed` and never finished or got a response |
 
 Devnet labels (only with `E2E_DEVNET=1`, stage 7; `E` as above):
