@@ -16,7 +16,7 @@ The frontend provides a browser-based interface for:
 - **Framework:** Next.js 15 (App Router)
 - **UI:** React 19, TailwindCSS
 - **Language:** TypeScript 5
-- **Cardano SDK:** Evolution SDK (`@evolution-sdk/evolution`, vendored build, see `vendor/README.md`) for wallet connection, transaction building, parameter application and script hashing
+- **Cardano SDK:** Evolution SDK (`@evolution-sdk/evolution` 0.8.0, npm registry release) for wallet connection, transaction building, parameter application and script hashing
 - **Smart Contract Compilation:** Native Aiken (server-side, release binary run by absolute path)
 - **Parameter Application:** Evolution SDK (client-side)
 
@@ -206,7 +206,7 @@ The Evolution SDK (`@evolution-sdk/evolution`) is used for:
 - Script hash calculation (`lib/cardano/script-hash.ts`)
 - Label-1984 metadata encoding (`lib/cardano/metadata-encoder.ts`)
 
-The package is the vendored tarball described in `vendor/README.md`, not a registry install.
+The package is the npm registry release `@evolution-sdk/evolution@0.8.0`, pinned exactly in `package.json`; `npm ci` checks the download against the integrity hash in `package-lock.json`.
 
 ## Development Guide
 
@@ -345,9 +345,8 @@ If contract builds fail:
 
 If `@evolution-sdk/evolution` cannot be resolved:
 
-1. Run `npm ci` in `src/frontend` (the dependency is the vendored tarball `vendor/evolution-sdk-evolution-0.6.0-831e9cfa.tgz`, not a registry package)
-2. Check the tarball's sha256 against `vendor/README.md` (`npm ci` does not verify a `file:` tarball)
-3. Clear `.next` cache and rebuild
+1. Run `npm ci` in `src/frontend` (it installs `@evolution-sdk/evolution@0.8.0` from the npm registry and checks it against `package-lock.json`)
+2. Clear `.next` cache and rebuild
 
 ### Build Failures
 

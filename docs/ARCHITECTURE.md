@@ -77,7 +77,7 @@ UPLC Link is a decentralized verification platform for Cardano smart contracts. 
 - **Framework:** Next.js 15 (App Router, React 19)
 - **Language:** TypeScript 5
 - **Styling:** TailwindCSS
-- **Cardano SDK:** Evolution SDK (`@evolution-sdk/evolution` 0.6.0, vendored build, see `src/frontend/vendor/README.md`) for wallet client, transaction building, parameter application, script hashing and label-1984 metadata encoding
+- **Cardano SDK:** Evolution SDK (`@evolution-sdk/evolution` 0.8.0, npm registry release) for wallet client, transaction building, parameter application, script hashing and label-1984 metadata encoding
 - **Compilation:** Native Aiken (server-side, release binary run by absolute path)
 - **Parameterization:** Evolution SDK (client-side)
 - **Build:** `next build`, standalone output (`next.config.ts` sets only `output: "standalone"`)
@@ -687,7 +687,7 @@ CARDANO_NODE_PORT=3001
 **Frontend:**
 - Next.js 15
 - React 19
-- Evolution SDK 0.6.0 (`@evolution-sdk/evolution`, vendored build)
+- Evolution SDK 0.8.0 (`@evolution-sdk/evolution`)
 - TailwindCSS 3.4
 
 **Backend:**

@@ -11,7 +11,7 @@
  * the library default: node layout (indefinite lists/constr fields, definite
  * maps), which matches `aiken blueprint apply`.
  *
- * API names verified against @evolution-sdk/evolution 0.6.0 (dist/UPLC.d.ts):
+ * API names verified against @evolution-sdk/evolution 0.8.0 (dist/UPLC.d.ts):
  * constantTerm type tags are capitalized ("Integer", "ByteString", "String",
  * "Unit", "Bool", "Data").
  */
